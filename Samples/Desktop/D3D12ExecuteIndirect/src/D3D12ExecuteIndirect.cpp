@@ -34,7 +34,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
     m_csRootConstants(),
     m_enableCulling(true),
     m_fenceValues{},
-    m_fbxDirName("Assets\\"),
+    m_fbxDirName("D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\"),
     m_fbxFilename("texturedMonkey.obj"),
     m_fovy(XM_PI / 3)
 {
@@ -221,6 +221,7 @@ void D3D12ExecuteIndirect::LoadAssets()
         depthStencilDesc.Format = DXGI_FORMAT_D32_FLOAT;
         depthStencilDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         depthStencilDesc.Flags = D3D12_DSV_FLAG_NONE;
+        depthStencilDesc.Texture2D.MipSlice = 0;
 
         D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
         depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;

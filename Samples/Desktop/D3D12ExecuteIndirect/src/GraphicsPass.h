@@ -102,7 +102,10 @@ struct GraphicsPass
             psoDesc.PS = { pshader.data, pshader.size };
             psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
             psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-            psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+            psoDesc.DepthStencilState.DepthEnable = TRUE;
+            psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+            psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+            psoDesc.DepthStencilState.StencilEnable = FALSE;
             psoDesc.SampleMask = UINT_MAX;
             psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
             psoDesc.NumRenderTargets = 1;
@@ -131,11 +134,6 @@ struct GraphicsPass
         // Set Root signature.
         in_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
-        // Set CBV
-        //{
-        //    in_commandList->SetGraphicsRootConstantBufferView(Cbv, in_cbvHandle);
-        //}
-
         // Set RS
         {
             auto viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
@@ -145,10 +143,12 @@ struct GraphicsPass
         }
 
         // Set OM
-        in_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-        const float clearColor[] = { 0.3f, 0.2f, 0.4f, 1.0f };
-        in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-        in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        {
+            in_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+            const float clearColor[] = { 0.3f, 0.2f, 0.4f, 1.0f };
+            in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+            in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        }
 
         // Set IA
         {
@@ -157,7 +157,7 @@ struct GraphicsPass
             in_commandList->IASetIndexBuffer(&in_indexBufferView);
         }
 
-        // Set Root Parameters
+        // Set Root Parameters, CBV
         {
             in_commandList->SetGraphicsRootConstantBufferView(Cbv, in_constantBuffer);
         }
