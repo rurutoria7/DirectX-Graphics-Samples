@@ -12,6 +12,9 @@
 #pragma once
 
 #include "DXSample.h"
+#include "MyMesh.h"
+#include "GraphicsPass.h"
+#include "GenArgPass.h"
 
 using namespace DirectX;
 
@@ -32,11 +35,15 @@ public:
     virtual void OnRender();
     virtual void OnDestroy();
     virtual void OnKeyDown(UINT8 key);
+    void ResetGFXCommandList();
+    void ExecuteGFXCommandList();
 
 private:
+    static const int MAX_NUM_TEXTURES = 20;
+
     static const UINT FrameCount = 3;
-    static const UINT TriangleCount = 1024;
-    static const UINT TriangleResourceCount = TriangleCount * FrameCount;
+    static const UINT MaxNumMeshes = 100;
+    static const UINT MaxMeshResourceCount = MaxNumMeshes * FrameCount;
     static const UINT CommandSizePerFrame;                // The size of the indirect commands to draw all of the triangles in a single frame.
     static const UINT CommandBufferCounterOffset;        // The offset of the UAV counter in the processed command buffer.
     static const UINT ComputeThreadBlockSize = 128;        // Should match the value in compute.hlsl.
@@ -44,23 +51,16 @@ private:
     static const float TriangleDepth;                    // The z offset used by the triangle vertices.
     static const float CullingCutoff;                    // The +/- x offset of the clipping planes in homogenous space [-1,1].
 
-    // Vertex definition.
-    struct Vertex
-    {
-        XMFLOAT3 position;
-    };
-
     // Constant buffer definition.
     struct SceneConstantBuffer
     {
-        XMFLOAT4 velocity;
-        XMFLOAT4 offset;
-        XMFLOAT4 color;
-        XMFLOAT4X4 projection;
+        XMFLOAT4 diffuseColor;
+        XMUINT4 textureId;
+        XMFLOAT4X4 mvp;
 
         // Constant buffers are 256-byte aligned. Add padding in the struct to allow multiple buffers
         // to be array-indexed.
-        float padding[36];
+        float padding[40];
     };
 
     // Root constants for the compute shader.
@@ -79,12 +79,6 @@ private:
         D3D12_DRAW_ARGUMENTS drawArguments;
     };
 
-    // Graphics root signature parameter offsets.
-    enum GraphicsRootParameters
-    {
-        Cbv,
-        GraphicsRootParametersCount
-    };
 
     // Compute root signature parameter offsets.
     enum ComputeRootParameters
@@ -100,8 +94,17 @@ private:
         CbvSrvOffset = 0,                                                    // SRV that points to the constant buffers used by the rendering thread.
         CommandsOffset = CbvSrvOffset + 1,                                    // SRV that points to all of the indirect commands.
         ProcessedCommandsOffset = CommandsOffset + 1,                        // UAV that records the commands we actually want to execute.
-        CbvSrvUavDescriptorCountPerFrame = ProcessedCommandsOffset + 1        // 2 SRVs + 1 UAV for the compute shader.
+        TextureOffset = ProcessedCommandsOffset + 1,                        // SRV that points to the texture used by the rendering thread.
+        CbvSrvUavDescriptorCountPerFrame = TextureOffset + MAX_NUM_TEXTURES,    // The number of descriptors per frame.
     };
+
+    GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
+    GenArgPass m_genArgPass;
+    OWO::FBXLoader m_fbxLoader;
+    std::string m_fbxDirName = "Assets\\";
+    std::string m_fbxFilename = "texturedSphere.obj";
+
+    std::string m_diffuseNames[MAX_NUM_TEXTURES] = {"Assets\\wall.jpg", "Assets\\table.png", "Assets\\table_b.png"};
 
     // Each triangle gets its own constant buffer per frame.
     std::vector<SceneConstantBuffer> m_constantBufferData;
@@ -111,8 +114,6 @@ private:
     bool m_enableCulling;                // Toggle whether the compute shader pre-processes the indirect commands.
 
     // Pipeline objects.
-    CD3DX12_VIEWPORT m_viewport;
-    CD3DX12_RECT m_scissorRect;
     D3D12_RECT m_cullingScissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12Device> m_device;
@@ -121,12 +122,11 @@ private:
     ComPtr<ID3D12CommandAllocator> m_computeCommandAllocators[FrameCount];
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<ID3D12CommandQueue> m_computeCommandQueue;
-    ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12RootSignature> m_computeRootSignature;
     ComPtr<ID3D12CommandSignature> m_commandSignature;
+    ComPtr<ID3D12DescriptorHeap> m_cbvSrvUavHeap;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
     ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
-    ComPtr<ID3D12DescriptorHeap> m_cbvSrvUavHeap;
     UINT m_rtvDescriptorSize;
     UINT m_cbvSrvUavDescriptorSize;
     UINT m_frameIndex;
@@ -138,12 +138,16 @@ private:
     HANDLE m_fenceEvent;
 
     // Asset objects.
-    ComPtr<ID3D12PipelineState> m_pipelineState;
-    ComPtr<ID3D12PipelineState> m_computeState;
+    ComPtr<ID3D12Resource> m_upload_buffer[MAX_NUM_TEXTURES];
+    ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
     ComPtr<ID3D12GraphicsCommandList> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
-    ComPtr<ID3D12Resource> m_vertexBuffer;
-    ComPtr<ID3D12Resource> m_constantBuffer;
+    ComPtr<ID3D12Resource> m_default_vertexBuffer;
+    ComPtr<ID3D12Resource> m_default_culled_vertex_buffer;
+    ComPtr<ID3D12Resource> m_default_indexBuffer;
+    ComPtr<ID3D12Resource> m_default_culled_indexBuffer;
+    ComPtr<ID3D12Resource> m_drawArgsBuffer;
+    ComPtr<ID3D12Resource> m_upload_constantBuffer;
     ComPtr<ID3D12Resource> m_depthStencil;
     ComPtr<ID3D12Resource> m_commandBuffer;
     ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
@@ -155,7 +159,6 @@ private:
     void RestoreD3DResources();
     void ReleaseD3DResources();
     float GetRandomFloat(float min, float max);
-    void PopulateCommandLists();
     void WaitForGpu();
     void MoveToNextFrame();
 

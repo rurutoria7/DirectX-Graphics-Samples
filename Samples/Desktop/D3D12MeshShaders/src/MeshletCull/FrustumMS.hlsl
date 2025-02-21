@@ -54,8 +54,8 @@ float3 IntersectPlanes(float4 p0, float4 p1, float4 p2)
 cbuffer Globals : register(b0)
 {
     float4x4 ViewProj;
-    float4   Planes[6];
-    float4   LineColor;
+    float4 Planes[6];
+    float4 LineColor;
 };
 
 
@@ -67,26 +67,39 @@ cbuffer Globals : register(b0)
 [OutputTopology("line")]
 void main(
     uint gtid : SV_GroupThreadID,
-    out vertices DebugVertex verts[8],
-    out indices uint2 prims[12]
+    out vertices DebugVertex verts[8 * 4],
+    out indices uint2 prims[12 * 4]
 )
 {
-    SetMeshOutputCounts(8, 12);
+    SetMeshOutputCounts(8 * 4, 12 * 4);
 
     if (gtid < 8)
     {
         uint3 p = IntersectionIndices[gtid];
         float3 position = IntersectPlanes(Planes[p.x], Planes[p.y], Planes[p.z]);
 
-        DebugVertex v = (DebugVertex)0;
+        DebugVertex v = (DebugVertex) 0;
         v.Position = mul(float4(position, 1), ViewProj);
         v.Color = LineColor;
 
         verts[gtid] = v;
+        
+        for (int i = 1; i < 4; i++)
+        {
+            position = IntersectPlanes(Planes[p.x], Planes[p.y], Planes[p.z]) + float3(0, 0.1 * i, 0);
+            v.Position = mul(float4(position, 1), ViewProj);
+            v.Color = LineColor;
+            verts[gtid + 8 * i] = v;
+        }
     }
 
     if (gtid < 12)
     {
         prims[gtid] = PrimitiveIndices[gtid];
+        
+        for (int i = 1; i < 4; i++)
+        {
+            prims[gtid + 12 * i] = PrimitiveIndices[gtid] + 8 * i;
+        }
     }
 }

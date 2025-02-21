@@ -82,6 +82,7 @@ private:
     uint32_t                           m_dsvDescriptorSize;
 
     ComPtr<ID3D12Resource>             m_constantBuffer;
+    ComPtr<ID3D12Resource>             m_constantBufferPlayer;
     void*                              m_constantsData;
 
     StepTimer                          m_timer;

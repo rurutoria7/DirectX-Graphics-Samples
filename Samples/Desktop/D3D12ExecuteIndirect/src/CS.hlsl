@@ -13,11 +13,9 @@
 
 struct SceneConstantBuffer
 {
-    float4 velocity;
-    float4 offset;
-    float4 color;
+    uint4 color;
     float4x4 projection;
-    float4 padding[9];
+    float4 padding[44];
 };
 
 struct IndirectCommand
@@ -28,24 +26,25 @@ struct IndirectCommand
 
 cbuffer RootConstants : register(b0)
 {
-    float xOffset;        // Half the width of the triangles.
-    float zOffset;        // The z offset for the triangle vertices.
-    float cullOffset;    // The culling plane offset in homogenous space.
-    float commandCount;    // The number of commands to be processed.
+    float xOffset; // Half the width of the triangles.
+    float zOffset; // The z offset for the triangle vertices.
+    float cullOffset; // The culling plane offset in homogenous space.
+    float commandCount; // The number of commands to be processed.
 };
 
-StructuredBuffer<SceneConstantBuffer> cbv                : register(t0);    // SRV: Wrapped constant buffers
-StructuredBuffer<IndirectCommand> inputCommands            : register(t1);    // SRV: Indirect commands
-AppendStructuredBuffer<IndirectCommand> outputCommands    : register(u0);    // UAV: Processed indirect commands
+StructuredBuffer<SceneConstantBuffer> cbv : register(t0); // SRV: Wrapped constant buffers
+StructuredBuffer<IndirectCommand> inputCommands : register(t1); // SRV: Indirect commands
+AppendStructuredBuffer<IndirectCommand> outputCommands : register(u0); // UAV: Processed indirect commands
 
 [numthreads(threadBlockSize, 1, 1)]
-void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
+void main(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
     // Each thread of the CS operates on one of the indirect commands.
     uint index = (groupId.x * threadBlockSize) + groupIndex;
 
     // Don't attempt to access commands that don't exist if more threads are allocated
     // than commands.
+    /*
     if (index < commandCount)
     {
         // Project the left and right bounds of the triangle into homogenous space.
@@ -63,4 +62,5 @@ void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
             outputCommands.Append(inputCommands[index]);
         }
     }
+*/
 }
