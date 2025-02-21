@@ -1,11 +1,11 @@
 
-//cbuffer SceneConstantBuffer : register(b0)
-//{
-//    float4 diffuseColor;
-//    uint4 color;
-//    float4x4 projection;
-//    float4 padding[40];
-//};
+cbuffer SceneConstantBuffer : register(b0)
+{
+    float4 diffuseColor;
+    uint4 color;
+    float4x4 mvp;
+    float4 padding[40];
+};
 
 float4x4 RotationMatrix(float3 angles)
 {
@@ -56,10 +56,8 @@ PSInput main(VSInput input)
 {
     
     PSInput result;
-    result.position = float4(input.position.x * 0.1f, input.position.y * 0.1f, input.position.z * 0.1f, 1.0f);
-    result.position = mul(result.position, RotationMatrix(float3(50.0f, 20.0f, 10.0f)));
-    result.position += float4(0, 0, 0.5f, 0);
-    //result.uv = input.texcoord;
+    result.position = mul(float4(input.position, 1.0f), mvp);
+    result.uv = input.texcoord;
     return result;
     
     //result.position = mul(float4(input.position, 1.0f), projection);

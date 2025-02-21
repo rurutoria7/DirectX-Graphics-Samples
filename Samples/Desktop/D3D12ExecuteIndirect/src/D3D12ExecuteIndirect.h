@@ -15,6 +15,8 @@
 #include "MyMesh.h"
 #include "GraphicsPass.h"
 #include "GenArgPass.h"
+#include "SimpleCamera.h"
+#include "StepTimer.h"
 
 using namespace DirectX;
 
@@ -35,6 +37,7 @@ public:
     virtual void OnRender();
     virtual void OnDestroy();
     virtual void OnKeyDown(UINT8 key);
+    virtual void OnKeyUp(UINT8 key);
     void ResetGFXCommandList();
     void ExecuteGFXCommandList();
 
@@ -98,13 +101,14 @@ private:
         CbvSrvUavDescriptorCountPerFrame = TextureOffset + MAX_NUM_TEXTURES,    // The number of descriptors per frame.
     };
 
+    float                              m_fovy;
+    StepTimer                          m_timer;
+    SimpleCamera m_playerCamera;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
     GenArgPass m_genArgPass;
     OWO::FBXLoader m_fbxLoader;
-    std::string m_fbxDirName = "Assets\\";
-    std::string m_fbxFilename = "texturedSphere.obj";
-
-    std::string m_diffuseNames[MAX_NUM_TEXTURES] = {"Assets\\wall.jpg", "Assets\\table.png", "Assets\\table_b.png"};
+    std::string m_fbxDirName;
+    std::string m_fbxFilename;
 
     // Each triangle gets its own constant buffer per frame.
     std::vector<SceneConstantBuffer> m_constantBufferData;

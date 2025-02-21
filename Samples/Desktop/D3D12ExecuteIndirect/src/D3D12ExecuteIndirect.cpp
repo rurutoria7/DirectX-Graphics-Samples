@@ -33,7 +33,10 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
     m_cbvSrvUavDescriptorSize(0),
     m_csRootConstants(),
     m_enableCulling(true),
-    m_fenceValues{}
+    m_fenceValues{},
+    m_fbxDirName("Assets\\"),
+    m_fbxFilename("texturedMonkey.obj"),
+    m_fovy(XM_PI / 3)
 {
     m_constantBufferData.resize(MaxNumMeshes * FrameCount);
 
@@ -55,6 +58,8 @@ void D3D12ExecuteIndirect::OnInit()
     LoadPipeline();
     LoadAssets();
     m_graphicsPass.Init(m_device.Get(), GetAssetFullPath(L""));
+    m_playerCamera.Init({ 0, 15, 40 });
+    m_playerCamera.SetMoveSpeed(25.0f);
 }
 
 // Load the rendering pipeline dependencies.
@@ -198,12 +203,6 @@ void D3D12ExecuteIndirect::LoadAssets()
     // Load FBX.
     {
         m_fbxLoader.LoadFBX(m_fbxDirName + m_fbxFilename);
-        //m_fbxLoader.meshes[0].indices = { 0, 1, 2 };
-        //m_fbxLoader.meshes[0].vertices = {
-        //    { 0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-        //    { 0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f },
-        //    { -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
-        //};
     }
 
     // Create the command list.
@@ -256,27 +255,25 @@ void D3D12ExecuteIndirect::LoadAssets()
 
         NAME_D3D12_OBJECT(m_upload_constantBuffer);
 
-#if 0
         for (UINT i = 0; i < m_fbxLoader.NumMeshes(); i++)
         {
             auto texIndex = i % MAX_NUM_TEXTURES + TextureOffset;
             m_constantBufferData[i].textureId = XMUINT4(texIndex, 0, 0, 0);
-            XMStoreFloat4x4(&m_constantBufferData[i].mvp, XMMatrixTranspose(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_aspectRatio, 0.01f, 20.0f)));
+            //XMStoreFloat4x4(&m_constantBufferData[i].mvp, XMMatrixTranspose(XMMatrixPerspectiveFovLH(XM_PIDIV4, m_aspectRatio, 0.01f, 20.0f)));
             XMFLOAT4 color = {
-                m_fbxLoader.GetMeshes()[n].material.diffuseColor[0],
-                m_fbxLoader.GetMeshes()[n].material.diffuseColor[1],
-                m_fbxLoader.GetMeshes()[n].material.diffuseColor[2],
+                m_fbxLoader.GetMeshes()[i].material.diffuseColor[0],
+                m_fbxLoader.GetMeshes()[i].material.diffuseColor[1],
+                m_fbxLoader.GetMeshes()[i].material.diffuseColor[2],
                 1.0f
             };
-            m_constantBufferData[n].diffuseColor = color;
+            m_constantBufferData[i].diffuseColor = color;
         }
 
-        // Map and initialize the constant buffer. We don't unmap this until the
-        // app closes. Keeping things mapped for the lifetime of the resource is okay.
         CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
         ThrowIfFailed(m_upload_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
         memcpy(m_pCbvDataBegin, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof(SceneConstantBuffer));
 
+#if 0
         // Create shader resource views (SRV) of the constant buffers for the
         // compute shader to read from.
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -315,8 +312,9 @@ void D3D12ExecuteIndirect::LoadAssets()
     }
 #endif
 
-    ComPtr<ID3D12Resource> commandBufferUpload;
     // Create the command buffers and UAVs to store the results of the compute work.
+    ComPtr<ID3D12Resource> commandBufferUpload;
+#if 0
     {
         std::vector<IndirectCommand> commands;
         commands.resize(m_fbxLoader.NumMeshes() * FrameCount);
@@ -437,6 +435,7 @@ void D3D12ExecuteIndirect::LoadAssets()
         ZeroMemory(pMappedCounterReset, sizeof(UINT));
         m_processedCommandBufferCounterReset->Unmap(0, nullptr);
     }
+#endif
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -456,7 +455,6 @@ void D3D12ExecuteIndirect::LoadAssets()
         // complete before continuing.
         WaitForGpu();
     }
-
     ComPtr<ID3D12Resource> upload_vertexBuffer;
     ComPtr<ID3D12Resource> upload_indexBuffer;
 
@@ -624,18 +622,23 @@ float D3D12ExecuteIndirect::GetRandomFloat(float min, float max)
 // Update frame-based values.
 void D3D12ExecuteIndirect::OnUpdate()
 {
-#if 0
-    for (UINT i = 0; i < m_fbxLoader.NumMeshes(); i++)
+    m_timer.Tick(NULL);
+    m_playerCamera.Update(static_cast<float>(m_timer.GetElapsedSeconds()));
+
+    // Update the MVP matrix for each mesh.
     {
-        m_constantBufferData[i].textureId = XMUINT4(1, 0, 0, 0);
-        auto mvp = XMMatrixScaling(0.01f, 0.01f, 0.01f);
-        mvp *= XMMatrixRotationX(90.0f);
-        XMStoreFloat4x4(&m_constantBufferData[i].mvp, XMMatrixTranspose(mvp));
+        XMMATRIX view = m_playerCamera.GetViewMatrix();
+        XMMATRIX proj = m_playerCamera.GetProjectionMatrix(m_fovy, m_aspectRatio);
+        auto mvp = XMMatrixMultiply(view, proj);
+
+        for (UINT i = 0; i < m_fbxLoader.NumMeshes(); i++)
+        {
+            XMStoreFloat4x4(&m_constantBufferData[i].mvp, XMMatrixTranspose(mvp));
+        }
     }
 
     UINT8* destination = m_pCbvDataBegin + (m_fbxLoader.NumMeshes() * m_frameIndex * sizeof(SceneConstantBuffer));
     memcpy(destination, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof(SceneConstantBuffer));
-#endif
 }
 
 // Render the scene.
@@ -751,6 +754,12 @@ void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
     {
         m_enableCulling = !m_enableCulling;
     }
+    m_playerCamera.OnKeyDown(key);
+}
+
+void D3D12ExecuteIndirect::OnKeyUp(UINT8 key)
+{
+    m_playerCamera.OnKeyUp(key);
 }
 
 void D3D12ExecuteIndirect::ResetGFXCommandList()
