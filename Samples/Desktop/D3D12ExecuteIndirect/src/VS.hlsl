@@ -56,7 +56,8 @@ PSInput main(VSInput input)
 {
     
     PSInput result;
-    result.position = mul(float4(input.position, 1.0f), mvp);
+    result.position = float4(input.position.x * 0.1f, input.position.y * 0.1f, input.position.z * 0.1f, 1.0f);
+    result.position = mul(result.position, mvp);
     result.uv = input.texcoord;
     return result;
     

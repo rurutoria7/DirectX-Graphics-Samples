@@ -1,5 +1,5 @@
 
-//SamplerState g_sampler : register(s0);
+SamplerState g_sampler : register(s0);
 
 cbuffer SceneConstantBuffer : register(b0)
 {
@@ -18,10 +18,8 @@ struct PSInput
 
 float4 main(PSInput input) : SV_TARGET
 {
-    return float4(input.uv, 0, 1);
-    
-    //Texture2D<float4> myTexture = ResourceDescriptorHeap[3];
-    //float4 color = myTexture.Sample(g_sampler, input.uv);
-    //float4 diffuse = diffuseColor * color;
-    //return diffuse;
+    Texture2D<float4> myTexture = ResourceDescriptorHeap[3];
+    float4 color = myTexture.Sample(g_sampler, input.uv);
+    float4 diffuse = diffuseColor * color;
+    return diffuse;
 }

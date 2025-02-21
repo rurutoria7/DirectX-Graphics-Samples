@@ -34,8 +34,8 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect(UINT width, UINT height, std::wstring
     m_csRootConstants(),
     m_enableCulling(true),
     m_fenceValues{},
-    m_fbxDirName("D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\"),
-    m_fbxFilename("texturedMonkey.obj"),
+    m_fbxDirName("D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\Meshes\\Buildings\\"),
+    m_fbxFilename("building.fbx"),
     m_fovy(XM_PI / 3)
 {
     m_constantBufferData.resize(MaxNumMeshes * FrameCount);
@@ -524,9 +524,7 @@ void D3D12ExecuteIndirect::LoadAssets()
     }
 
     // Create diffuse texture.
-
     {
-#if 0
         for (UINT i = 0; i < m_fbxLoader.GetTextures().size(); i++)
         {
             auto& tex = m_fbxLoader.GetTextures()[i];
@@ -582,7 +580,6 @@ void D3D12ExecuteIndirect::LoadAssets()
                 D3D12_RESOURCE_STATE_COPY_DEST,
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
         }
-#endif
     }
 
     // Create SRVs for diffuse texture
