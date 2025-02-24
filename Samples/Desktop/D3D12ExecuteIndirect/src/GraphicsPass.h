@@ -101,6 +101,7 @@ struct GraphicsPass
             psoDesc.VS = { vshader.data, vshader.size };
             psoDesc.PS = { pshader.data, pshader.size };
             psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+            psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
             psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
             psoDesc.DepthStencilState.DepthEnable = TRUE;
             psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -115,6 +116,20 @@ struct GraphicsPass
 
             ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
             NAME_D3D12_OBJECT(m_pipelineState);
+        }
+    }
+
+    void SetAndClearRenderTarget(
+        ID3D12GraphicsCommandList* in_commandList,
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
+        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle
+    )
+    {
+        {
+            in_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+            const float clearColor[] = { 0.3f, 0.2f, 0.4f, 1.0f };
+            in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+            in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
         }
     }
 
@@ -140,14 +155,6 @@ struct GraphicsPass
             auto scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
             in_commandList->RSSetViewports(1, &viewport);
             in_commandList->RSSetScissorRects(1, &scissorRect);
-        }
-
-        // Set OM
-        {
-            in_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-            const float clearColor[] = { 0.3f, 0.2f, 0.4f, 1.0f };
-            in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-            in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
         }
 
         // Set IA

@@ -58,7 +58,7 @@ private:
     struct SceneConstantBuffer
     {
         XMFLOAT4 diffuseColor;
-        XMUINT4 textureId;
+        XMINT4 textureID;
         XMFLOAT4X4 mvp;
 
         // Constant buffers are 256-byte aligned. Add padding in the struct to allow multiple buffers
@@ -146,6 +146,7 @@ private:
     ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
     ComPtr<ID3D12GraphicsCommandList> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
+    ComPtr<ID3D12Resource> m_upload_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_vertexBuffer;
     ComPtr<ID3D12Resource> m_default_culled_vertex_buffer;
     ComPtr<ID3D12Resource> m_default_indexBuffer;

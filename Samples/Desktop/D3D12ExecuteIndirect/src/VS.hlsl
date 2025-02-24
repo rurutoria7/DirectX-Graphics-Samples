@@ -2,7 +2,7 @@
 cbuffer SceneConstantBuffer : register(b0)
 {
     float4 diffuseColor;
-    uint4 color;
+    int4 textureID;
     float4x4 mvp;
     float4 padding[40];
 };

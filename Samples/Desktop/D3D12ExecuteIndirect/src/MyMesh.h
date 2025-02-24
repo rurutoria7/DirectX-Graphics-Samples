@@ -10,6 +10,10 @@
 
 namespace OWO
 {
+    struct Instance {
+        //XMMATRIX world;
+        //UINT materialIndex;
+    };
     struct Vertex {
         float position[3];
         float normal[3];
@@ -24,6 +28,20 @@ namespace OWO
     struct Material {
         std::vector<Texture> textures;
         float diffuseColor[3];
+
+        /*
+        * return -1 if not found
+        */
+        int GetTextureID(std::string type, const std::vector<Texture> &allTextures) {
+            for (auto& tex : textures) {
+                for (int i = 0; i < allTextures.size(); i++) {
+                    if (tex.type == type && tex.path == allTextures[i].path) {
+                        return i;
+                    }
+                }
+            }
+            return -1;
+        }
     };
 
     struct Mesh {
@@ -93,7 +111,6 @@ namespace OWO
 #ifdef IMPLEMENT_FBXLOADER
 namespace OWO
 {
-
     bool FBXLoader::LoadFBX(const std::string& filepath) {
         Assimp::Importer importer;
         const aiScene* scene = importer.ReadFile(filepath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals);
