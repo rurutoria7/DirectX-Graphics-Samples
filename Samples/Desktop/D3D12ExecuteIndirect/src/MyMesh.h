@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <DirectXMath.h>
 
 #ifndef MYMESH_H
 #define MYMESH_H
@@ -11,8 +12,8 @@
 namespace OWO
 {
     struct Instance {
-        //XMMATRIX world;
-        //UINT materialIndex;
+        DirectX::XMFLOAT4X4 world;
+        DirectX::XMINT4 materialIndex;
     };
     struct Vertex {
         float position[3];
@@ -47,6 +48,7 @@ namespace OWO
     struct Mesh {
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
+        std::vector<Instance> instances;
         Material material;
     };
 
@@ -59,6 +61,7 @@ namespace OWO
         std::vector<Texture> allTextures;
         std::vector<Material> allMaterials;
         std::vector<Vertex> allVertices;
+        std::vector<Instance> allInstance;
         std::vector<unsigned int> allIndices;
 
         const unsigned int NumMeshes() const {
@@ -85,11 +88,22 @@ namespace OWO
             }
             return offset;
         }
+        const unsigned int GetInstanceOffset(int meshIndex) const {
+            unsigned int offset = 0;
+            for (int i = 0; i < meshIndex; i++) {
+                offset += meshes[i].instances.size();
+            }
+            return offset;
+        }
+
         const std::vector<Mesh>& GetMeshes() const {
             return meshes;
         }
         const std::vector<Vertex>& GetVertices() const {
             return allVertices;
+        }
+        const std::vector<Instance>& GetInstances() const {
+            return allInstance;
         }
         const std::vector<unsigned int>& GetIndices() const {
             return allIndices;
@@ -127,6 +141,7 @@ namespace OWO
         for (auto& mesh : meshes) {
             allVertices.insert(allVertices.end(), mesh.vertices.begin(), mesh.vertices.end());
             allTextures.insert(allTextures.end(), mesh.material.textures.begin(), mesh.material.textures.end());
+            allInstance.insert(allInstance.end(), mesh.instances.begin(), mesh.instances.end());
             allMaterials.push_back(mesh.material);
             allIndices.insert(allIndices.end(), mesh.indices.begin(), mesh.indices.end());
         }
