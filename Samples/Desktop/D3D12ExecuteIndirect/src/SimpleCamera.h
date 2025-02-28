@@ -18,8 +18,9 @@ class SimpleCamera
 public:
     SimpleCamera();
 
-    void Init(XMFLOAT3 position);
+    void Init(XMFLOAT3 position, bool needShift);
     void Update(float elapsedSeconds);
+    XMMATRIX GetGodViewMatrix();
     XMMATRIX GetViewMatrix();
     XMMATRIX GetProjectionMatrix(float fov, float aspectRatio, float nearPlane = 1.0f, float farPlane = 1000.0f);
     void SetMoveSpeed(float unitsPerSecond);
@@ -44,8 +45,11 @@ private:
         bool right;
         bool up;
         bool down;
+
+        bool lshift;
     };
 
+    bool m_needShift;
     XMFLOAT3 m_initialPosition;
     XMFLOAT3 m_position;
     float m_yaw;                // Relative to the +z axis.

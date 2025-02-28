@@ -37,12 +37,19 @@ float4x4 RotationMatrix(float3 angles)
     return mul(mul(rz, ry), rx);
 }
 
-struct VSInput
+struct VertexInput
 {
     float3 position : POSITION; // ¦ì¸m (R32G32B32_FLOAT)
     float3 normal : NORMAL; // ªk½u (R32G32B32_FLOAT)
     float2 texcoord : TEXCOORD; // UV (R32G32_FLOAT)
 };
+
+struct InstanceInput
+{
+    float4x4 world : WORLD;
+    int4 materialId : MATERIAL_IDX;
+};
+
 
 struct PSInput
 {
@@ -52,13 +59,14 @@ struct PSInput
     float3 normal : NORMAL;
 };
 
-PSInput main(VSInput input)
+PSInput main(VertexInput in_vert, InstanceInput in_inst)
 {
     
     PSInput result;
-    result.position = float4(input.position.x * 0.1f, input.position.y * 0.1f, input.position.z * 0.1f, 1.0f);
+    result.position = float4(in_vert.position, 1.0f);
+    result.position = mul(result.position, in_inst.world);
     result.position = mul(result.position, mvp);
-    result.uv = input.texcoord;
+    result.uv = in_vert.texcoord;
     return result;
     
     //result.position = mul(float4(input.position, 1.0f), projection);

@@ -62,7 +62,7 @@ struct GraphicsPass
             ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
             NAME_D3D12_OBJECT(m_rootSignature);
         }
-        
+
         // Create the pipeline state, which includes compiling and loading shaders.
         {
             std::wstring c_vsFilename = m_assetPath + L"VS.cso";
@@ -89,9 +89,17 @@ struct GraphicsPass
             // Define the vertex input layout.
             D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
             {
+                // Vertex Buffer
                 { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
                 { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-                { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+                { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+
+                // Instance Buffer
+                { "WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0,  D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+                { "WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+                { "WORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+                { "WORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+                { "MATERIAL_IDX", 0, DXGI_FORMAT_R32G32B32A32_SINT, 1, 64, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 }
             };
 
             // Describe and create the graphics pipeline state objects (PSO).
@@ -122,23 +130,28 @@ struct GraphicsPass
     void SetAndClearRenderTarget(
         ID3D12GraphicsCommandList* in_commandList,
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
-        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle
+        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle,
+        int doClear = 1
     )
     {
         {
             in_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
             const float clearColor[] = { 0.3f, 0.2f, 0.4f, 1.0f };
-            in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-            in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+            if (doClear) {
+                in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+                in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+            }
         }
     }
 
     void Execute(
         ID3D12GraphicsCommandList* in_commandList,
         D3D12_VERTEX_BUFFER_VIEW in_vertexBufferView,
+        D3D12_VERTEX_BUFFER_VIEW in_instanceBufferView,
         D3D12_INDEX_BUFFER_VIEW in_indexBufferView,
         D3D12_GPU_VIRTUAL_ADDRESS in_constantBuffer,
-        UINT width, UINT height,
+        UINT width, UINT height, int leftOrRight,
         UINT numIndices,
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
         D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle
@@ -151,8 +164,21 @@ struct GraphicsPass
 
         // Set RS
         {
-            auto viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-            auto scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
+            CD3DX12_VIEWPORT viewport;
+            CD3DX12_RECT scissorRect;
+            if (leftOrRight == 0) {
+                viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
+                scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
+            } 
+            else if (leftOrRight < 0) {     // lefts
+                viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width/2), static_cast<float>(height));
+                scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width/2), static_cast<LONG>(height));
+            }
+            else {     // right
+                viewport = CD3DX12_VIEWPORT(static_cast<float>(width / 2), 0.0f, static_cast<float>(width / 2), static_cast<float>(height));
+                scissorRect = CD3DX12_RECT(static_cast<LONG>(width / 2), 0, static_cast<LONG>(width), static_cast<LONG>(height));
+            }
+
             in_commandList->RSSetViewports(1, &viewport);
             in_commandList->RSSetScissorRects(1, &scissorRect);
         }
@@ -161,6 +187,7 @@ struct GraphicsPass
         {
             in_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             in_commandList->IASetVertexBuffers(0, 1, &in_vertexBufferView);
+            in_commandList->IASetVertexBuffers(1, 1, &in_instanceBufferView);
             in_commandList->IASetIndexBuffer(&in_indexBufferView);
         }
 
@@ -170,6 +197,6 @@ struct GraphicsPass
         }
 
         // Draw
-        in_commandList->DrawIndexedInstanced(numIndices, 1, 0, 0, 0);
+        in_commandList->DrawIndexedInstanced(numIndices, 5, 0, 0, 0);
     }
 };

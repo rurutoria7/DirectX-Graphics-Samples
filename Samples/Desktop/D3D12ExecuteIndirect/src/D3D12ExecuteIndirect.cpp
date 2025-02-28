@@ -58,8 +58,10 @@ void D3D12ExecuteIndirect::OnInit()
     LoadPipeline();
     LoadAssets();
     m_graphicsPass.Init(m_device.Get(), GetAssetFullPath(L""));
-    m_playerCamera.Init({ 0, 15, 40 });
-    m_playerCamera.SetMoveSpeed(25.0f);
+    m_mainCam.Init({ 0, 15, 40 }, false);
+    m_mainCam.SetMoveSpeed(250.0f);
+    m_debugCam.Init({ 0, 15, 40 }, true);
+    m_debugCam.SetMoveSpeed(400.0f);
 }
 
 // Load the rendering pipeline dependencies.
@@ -522,148 +524,224 @@ void D3D12ExecuteIndirect::LoadAssets()
 
     // Create Instance buffer.
     {
-#if 0
         auto CreateMockInstances = []() -> std::vector<OWO::Instance> {
             std::vector<OWO::Instance> instances;
 
-            float spacing = 2.0f; // 每個 Instance 之間的距離
+            float spacing = 200.0f;
             for (UINT i = 0; i < 5; i++) {
                 OWO::Instance inst;
-                inst.world = XMMatrixTranslation(i * spacing, 0.0f, 0.0f); // 沿 X 軸排列
-                inst.materialIndex = i; // 設置不同的材質索引
+                auto world = XMMatrixTranslation(spacing * i, 0, 0);
+                world = XMMatrixMultiply(world, XMMatrixRotationX(XMConvertToRadians(270.0f)));
+                XMStoreFloat4x4(&inst.world, XMMatrixTranspose(world));
+                inst.materialIndex = XMINT4(i, 0, 0, 0);
                 instances.push_back(inst);
             }
-
             return instances;
-        };
+            };
 
         auto _instances = CreateMockInstances();
 
-        const UINT indexBufferSize = _instances.size() * sizeof(OWO::Instance);
+        const UINT instanceBufferSize = _instances.size() * sizeof(OWO::Instance);
 
         ThrowIfFailed(m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
             D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(indexBufferSize),
+            &CD3DX12_RESOURCE_DESC::Buffer(instanceBufferSize),
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
-            IID_PPV_ARGS(&upload_indexBuffer)));
+            IID_PPV_ARGS(&m_upload_instanceBuffer)));
 
-        D3D12_SUBRESOURCE_DATA indicesData = {};
-        auto indices = m_fbxLoader.GetIndices();
-        indicesData.pData = indices.data();
-        indicesData.RowPitch = indexBufferSize;
-        indicesData.SlicePitch = indicesData.RowPitch;
+        NAME_D3D12_OBJECT(m_upload_instanceBuffer);
 
-        UpdateSubresources<1>(m_commandList.Get(), m_default_indexBuffer.Get(), upload_indexBuffer.Get(), 0, 0, 1, &indicesData);
-        m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER));
-#endif
-        }
-
-            // Create diffuse texture.
-        {
-            for (UINT i = 0; i < m_fbxLoader.GetTextures().size(); i++)
-            {
-                auto& tex = m_fbxLoader.GetTextures()[i];
-                if (tex.type != "diffuse") continue;
-
-                // Load image.
-                int texWidth, texHeight, texChannels;
-                std::string filename = m_fbxDirName + tex.path;
-                UINT8* texture = stbi_load(filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
-                auto& _diffuse = m_diffuseTexture[i];
-                auto& _buffer = m_upload_buffer[i];
-
-                // Create diffuse texture itself.
-                D3D12_RESOURCE_DESC textureDesc = {};
-                textureDesc.MipLevels = 1;
-                textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                textureDesc.Width = texWidth;
-                textureDesc.Height = texHeight;
-                textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-                textureDesc.DepthOrArraySize = 1;
-                textureDesc.SampleDesc.Count = 1;
-                textureDesc.SampleDesc.Quality = 0;
-                textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-                ThrowIfFailed(m_device->CreateCommittedResource(
-                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-                    D3D12_HEAP_FLAG_NONE,
-                    &textureDesc,
-                    D3D12_RESOURCE_STATE_COPY_DEST,
-                    nullptr,
-                    IID_PPV_ARGS(&_diffuse)));
-
-                // Create upload buffer
-                const UINT64 uploadBufferSize = GetRequiredIntermediateSize(_diffuse.Get(), 0, 1);
-                ThrowIfFailed(m_device->CreateCommittedResource(
-                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-                    D3D12_HEAP_FLAG_NONE,
-                    &CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
-                    D3D12_RESOURCE_STATE_GENERIC_READ,
-                    nullptr,
-                    IID_PPV_ARGS(&_buffer)));
-
-                // Record command: copy image data to texture
-                auto imageData = D3D12_SUBRESOURCE_DATA{};
-                imageData.pData = &texture[0];
-                imageData.RowPitch = texWidth * 4;
-                imageData.SlicePitch = imageData.RowPitch * texHeight;
-                UpdateSubresources(m_commandList.Get(), _diffuse.Get(), _buffer.Get(), 0, 0, 1, &imageData);
-
-                // Transition texture to shader resource state.
-                m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
-                    _diffuse.Get(),
-                    D3D12_RESOURCE_STATE_COPY_DEST,
-                    D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-            }
-        }
-
-        // Create SRVs for diffuse texture
-        {
-            for (int i = 0; i < m_fbxLoader.GetTextures().size(); i++)
-            {
-                D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-                srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-                srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-                srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-                srvDesc.Texture2D.MipLevels = 1;
-
-                CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
-                    m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(),
-                    TextureOffset + i,
-                    m_cbvSrvUavDescriptorSize);
-
-                auto& _diffuse = m_diffuseTexture[i];
-                for (UINT frame = 0; frame < FrameCount; frame++)
-                {
-                    m_device->CreateShaderResourceView(_diffuse.Get(), &srvDesc, srvHandle);
-                    srvHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
-                }
-            }
-        }
-
-        ExecuteGFXCommandList();
+        UINT8* pInstanceDataBegin;
+        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(m_upload_instanceBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pInstanceDataBegin)));
+        memcpy(pInstanceDataBegin, &_instances[0], instanceBufferSize);
     }
 
-    // Get a random float value between min and max.
-    float D3D12ExecuteIndirect::GetRandomFloat(float min, float max)
+    // Create diffuse texture.
     {
-        float scale = static_cast<float>(rand()) / RAND_MAX;
-        float range = max - min;
-        return scale * range + min;
+        for (UINT i = 0; i < m_fbxLoader.GetTextures().size(); i++)
+        {
+            auto& tex = m_fbxLoader.GetTextures()[i];
+            if (tex.type != "diffuse") continue;
+
+            // Load image.
+            int texWidth, texHeight, texChannels;
+            std::string filename = m_fbxDirName + tex.path;
+            UINT8* texture = stbi_load(filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+            auto& _diffuse = m_diffuseTexture[i];
+            auto& _buffer = m_upload_buffer[i];
+
+            // Create diffuse texture itself.
+            D3D12_RESOURCE_DESC textureDesc = {};
+            textureDesc.MipLevels = 1;
+            textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            textureDesc.Width = texWidth;
+            textureDesc.Height = texHeight;
+            textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+            textureDesc.DepthOrArraySize = 1;
+            textureDesc.SampleDesc.Count = 1;
+            textureDesc.SampleDesc.Quality = 0;
+            textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+            ThrowIfFailed(m_device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+                D3D12_HEAP_FLAG_NONE,
+                &textureDesc,
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                nullptr,
+                IID_PPV_ARGS(&_diffuse)));
+
+            // Create upload buffer
+            const UINT64 uploadBufferSize = GetRequiredIntermediateSize(_diffuse.Get(), 0, 1);
+            ThrowIfFailed(m_device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+                D3D12_HEAP_FLAG_NONE,
+                &CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                nullptr,
+                IID_PPV_ARGS(&_buffer)));
+
+            // Record command: copy image data to texture
+            auto imageData = D3D12_SUBRESOURCE_DATA{};
+            imageData.pData = &texture[0];
+            imageData.RowPitch = texWidth * 4;
+            imageData.SlicePitch = imageData.RowPitch * texHeight;
+            UpdateSubresources(m_commandList.Get(), _diffuse.Get(), _buffer.Get(), 0, 0, 1, &imageData);
+
+            // Transition texture to shader resource state.
+            m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+                _diffuse.Get(),
+                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+        }
     }
 
-    // Update frame-based values.
-    void D3D12ExecuteIndirect::OnUpdate()
+    // Create SRVs for diffuse texture
     {
-        m_timer.Tick(NULL);
-        m_playerCamera.Update(static_cast<float>(m_timer.GetElapsedSeconds()));
-
-        // Update the MVP matrix for each mesh.
+        for (int i = 0; i < m_fbxLoader.GetTextures().size(); i++)
         {
-            XMMATRIX view = m_playerCamera.GetViewMatrix();
-            XMMATRIX proj = m_playerCamera.GetProjectionMatrix(m_fovy, m_aspectRatio);
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srvDesc.Texture2D.MipLevels = 1;
+
+            CD3DX12_CPU_DESCRIPTOR_HANDLE srvHandle(
+                m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(),
+                TextureOffset + i,
+                m_cbvSrvUavDescriptorSize);
+
+            auto& _diffuse = m_diffuseTexture[i];
+            for (UINT frame = 0; frame < FrameCount; frame++)
+            {
+                m_device->CreateShaderResourceView(_diffuse.Get(), &srvDesc, srvHandle);
+                srvHandle.Offset(CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize);
+            }
+        }
+    }
+
+    // Init frustrum visualizer
+    {
+        m_frustumDraw.CreateDeviceResources(m_device.Get(), m_renderTargets[0]->GetDesc().Format, m_depthStencil->GetDesc().Format);
+    }
+
+    ExecuteGFXCommandList();
+}
+
+// Get a random float value between min and max.
+float D3D12ExecuteIndirect::GetRandomFloat(float min, float max)
+{
+    float scale = static_cast<float>(rand()) / RAND_MAX;
+    float range = max - min;
+    return scale * range + min;
+}
+
+// Update frame-based values.
+void D3D12ExecuteIndirect::OnUpdate()
+{
+    m_timer.Tick(NULL);
+    auto frameTime = static_cast<float>(m_timer.GetElapsedSeconds());
+    m_mainCam.Update(frameTime);
+    m_debugCam.Update(frameTime);
+
+    // Update view frustrum
+    {
+        XMMATRIX view = m_debugCam.GetViewMatrix();
+        XMMATRIX proj = m_debugCam.GetProjectionMatrix(m_fovy, m_aspectRatio);
+        XMMATRIX viewInv = XMMatrixInverse(nullptr, view);
+
+        XMMATRIX cullWorld = XMMatrixInverse(nullptr, m_mainCam.GetViewMatrix());
+        XMMATRIX cullView = m_mainCam.GetViewMatrix();
+        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix(m_fovy, m_aspectRatio, 1.0f, 300.0f);
+
+        XMMATRIX vp = XMMatrixTranspose(cullView * cullProj);
+        XMVECTOR planes[6] =
+        {
+            XMPlaneNormalize(vp.r[3] + vp.r[0]), // Left
+            XMPlaneNormalize(vp.r[3] - vp.r[0]), // Right
+            XMPlaneNormalize(vp.r[3] + vp.r[1]), // Bottom
+            XMPlaneNormalize(vp.r[3] - vp.r[1]), // Top
+            XMPlaneNormalize(vp.r[2]),           // Near
+            XMPlaneNormalize(vp.r[3] - vp.r[2]), // Far
+        };
+
+        m_frustumDraw.Update(view * proj, planes);
+    }
+
+
+    //// Update the MVP matrix for each mesh.
+    //{
+    //    auto mvp = XMMatrixMultiply(view, proj);
+
+    //    for (UINT i = 0; i < m_fbxLoader.NumMeshes(); i++)
+    //    {
+    //        int diffID = m_fbxLoader.meshes[i].material.GetTextureID("diffuse", m_fbxLoader.GetTextures());
+    //        if (diffID >= 0) diffID += TextureOffset;
+    //        m_constantBufferData[i].textureID = XMINT4(diffID, 0, 0, 0);
+    //        XMStoreFloat4x4(&m_constantBufferData[i].mvp, XMMatrixTranspose(mvp));
+    //    }
+    //}
+
+    //UINT8* destination = m_pCbvDataBegin + (m_fbxLoader.NumMeshes() * m_frameIndex * sizeof(SceneConstantBuffer));
+    //memcpy(destination, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof(SceneConstantBuffer));
+}
+
+// Render the scene.
+void D3D12ExecuteIndirect::OnRender()
+{
+    PIXBeginEvent(m_commandQueue.Get(), 0, L"Render");
+    ResetGFXCommandList();
+
+    // Transist Render Target from PRESENT to RENDER_TARGET
+    {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            m_renderTargets[m_frameIndex].Get(),
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+        m_commandList->ResourceBarrier(1, &barrier);
+    }
+
+    auto updateCameraConstant = [&](int playerOrGod, float aspectRatioDiv = 2) {
+        if (playerOrGod < 0)        // play
+        {
+            XMMATRIX view = m_mainCam.GetViewMatrix();
+            XMMATRIX proj = m_mainCam.GetProjectionMatrix(m_fovy, m_aspectRatio / aspectRatioDiv);
+            auto mvp = XMMatrixMultiply(view, proj);
+
+            for (UINT i = 0; i < m_fbxLoader.NumMeshes(); i++)
+            {
+                int diffID = m_fbxLoader.meshes[i].material.GetTextureID("diffuse", m_fbxLoader.GetTextures());
+                if (diffID >= 0) diffID += TextureOffset;
+                m_constantBufferData[i].textureID = XMINT4(diffID, 0, 0, 0);
+                XMStoreFloat4x4(&m_constantBufferData[i].mvp, XMMatrixTranspose(mvp));
+            }
+        }
+        else        // god
+        {
+            XMMATRIX view = m_debugCam.GetViewMatrix();
+            XMMATRIX proj = m_debugCam.GetProjectionMatrix(m_fovy, m_aspectRatio / aspectRatioDiv);
             auto mvp = XMMatrixMultiply(view, proj);
 
             for (UINT i = 0; i < m_fbxLoader.NumMeshes(); i++)
@@ -677,177 +755,221 @@ void D3D12ExecuteIndirect::LoadAssets()
 
         UINT8* destination = m_pCbvDataBegin + (m_fbxLoader.NumMeshes() * m_frameIndex * sizeof(SceneConstantBuffer));
         memcpy(destination, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof(SceneConstantBuffer));
-    }
+    };
 
-    // Render the scene.
-    void D3D12ExecuteIndirect::OnRender()
+    // Populate command list (player).
     {
-        PIXBeginEvent(m_commandQueue.Get(), 0, L"Render");
-        ResetGFXCommandList();
+        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-        // Transist Render Target from PRESENT to RENDER_TARGET
+        ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
+        m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+        m_graphicsPass.SetAndClearRenderTarget(m_commandList.Get(), rtvHandle, dsvHandle);
+
+        // render left (player)
+        updateCameraConstant(-1);
+        for (int i = 0; i < m_fbxLoader.GetMeshes().size(); i++)
         {
-            auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-                m_renderTargets[m_frameIndex].Get(),
-                D3D12_RESOURCE_STATE_PRESENT,
-                D3D12_RESOURCE_STATE_RENDER_TARGET);
-            m_commandList->ResourceBarrier(1, &barrier);
-        }
+            D3D12_VERTEX_BUFFER_VIEW vbv;
+            vbv.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
+            vbv.BufferLocation += m_fbxLoader.GetVertexOffset(i) * sizeof(OWO::Vertex);
+            vbv.StrideInBytes = sizeof(OWO::Vertex);
+            vbv.SizeInBytes = sizeof(OWO::Vertex) * m_fbxLoader.GetMeshes()[i].vertices.size();
 
-        // Populate command list.
+            D3D12_VERTEX_BUFFER_VIEW instbv;
+            instbv.BufferLocation = m_upload_instanceBuffer->GetGPUVirtualAddress();
+            instbv.StrideInBytes = sizeof(OWO::Instance);
+            instbv.SizeInBytes = sizeof(OWO::Instance) * 5;
+
+            D3D12_INDEX_BUFFER_VIEW ibv;
+            ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
+            ibv.BufferLocation += m_fbxLoader.GetIndexOffset(i) * sizeof(UINT);
+            ibv.Format = DXGI_FORMAT_R32_UINT;
+            ibv.SizeInBytes = sizeof(UINT) * m_fbxLoader.GetMeshes()[i].indices.size();
+
+            D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
+            constantBuffer += (i + m_frameIndex * m_fbxLoader.NumMeshes()) * sizeof(SceneConstantBuffer);
+
+            m_graphicsPass.Execute(
+                m_commandList.Get(),
+                vbv,
+                instbv,
+                ibv,
+                constantBuffer,
+                m_width, m_height, -1,
+                m_fbxLoader.GetMeshes()[i].indices.size(),
+                rtvHandle,
+                dsvHandle
+            );
+        }
+    }
+
+    ExecuteGFXCommandList();
+
+    ResetGFXCommandList();
+
+    // Populate command list (god).
+    {
+        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
+        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+        ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
+        m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+        m_graphicsPass.SetAndClearRenderTarget(m_commandList.Get(), rtvHandle, dsvHandle, 0);
+        updateCameraConstant(1);
+        for (int i = 0; i < m_fbxLoader.GetMeshes().size(); i++)
         {
-            auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
-            auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+            D3D12_VERTEX_BUFFER_VIEW vbv;
+            vbv.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
+            vbv.BufferLocation += m_fbxLoader.GetVertexOffset(i) * sizeof(OWO::Vertex);
+            vbv.StrideInBytes = sizeof(OWO::Vertex);
+            vbv.SizeInBytes = sizeof(OWO::Vertex) * m_fbxLoader.GetMeshes()[i].vertices.size();
 
-            ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
-            m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+            D3D12_VERTEX_BUFFER_VIEW instbv;
+            instbv.BufferLocation = m_upload_instanceBuffer->GetGPUVirtualAddress();
+            instbv.StrideInBytes = sizeof(OWO::Instance);
+            instbv.SizeInBytes = sizeof(OWO::Instance) * 5;
 
-            m_graphicsPass.SetAndClearRenderTarget(m_commandList.Get(), rtvHandle, dsvHandle);
+            D3D12_INDEX_BUFFER_VIEW ibv;
+            ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
+            ibv.BufferLocation += m_fbxLoader.GetIndexOffset(i) * sizeof(UINT);
+            ibv.Format = DXGI_FORMAT_R32_UINT;
+            ibv.SizeInBytes = sizeof(UINT) * m_fbxLoader.GetMeshes()[i].indices.size();
 
-            for (int i = 0; i < m_fbxLoader.GetMeshes().size(); i++)
-            {
-                D3D12_VERTEX_BUFFER_VIEW vbv;
-                vbv.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
-                vbv.BufferLocation += m_fbxLoader.GetVertexOffset(i) * sizeof(OWO::Vertex);
-                vbv.StrideInBytes = sizeof(OWO::Vertex);
-                vbv.SizeInBytes = sizeof(OWO::Vertex) * m_fbxLoader.GetMeshes()[i].vertices.size();
+            D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
+            constantBuffer += (i + m_frameIndex * m_fbxLoader.NumMeshes()) * sizeof(SceneConstantBuffer);
 
-                D3D12_INDEX_BUFFER_VIEW ibv;
-                ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
-                ibv.BufferLocation += m_fbxLoader.GetIndexOffset(i) * sizeof(UINT);
-                ibv.Format = DXGI_FORMAT_R32_UINT;
-                ibv.SizeInBytes = sizeof(UINT) * m_fbxLoader.GetMeshes()[i].indices.size();
-
-                D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
-                constantBuffer += (i + m_frameIndex * m_fbxLoader.NumMeshes()) * sizeof(SceneConstantBuffer);
-
-
-                m_graphicsPass.Execute(
-                    m_commandList.Get(),
-                    vbv,
-                    ibv,
-                    constantBuffer,
-                    m_width, m_height,
-                    m_fbxLoader.GetMeshes()[i].indices.size(),
-                    rtvHandle,
-                    dsvHandle
-                );
-            }
+            m_graphicsPass.Execute(
+                m_commandList.Get(),
+                vbv,
+                instbv,
+                ibv,
+                constantBuffer,
+                m_width, m_height, 1,
+                m_fbxLoader.GetMeshes()[i].indices.size(),
+                rtvHandle,
+                dsvHandle
+            );
         }
-
-
-        // Transist Render Target from RENDER_TARGET to PRESENT
-        {
-            auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-                m_renderTargets[m_frameIndex].Get(),
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-                D3D12_RESOURCE_STATE_PRESENT);
-            m_commandList->ResourceBarrier(1, &barrier);
-        }
-
-        ExecuteGFXCommandList();
-
-        PIXEndEvent(m_commandQueue.Get());
-
-        ThrowIfFailed(m_swapChain->Present(1, 0));
-
-        MoveToNextFrame();
+        m_frustumDraw.Draw(m_commandList.Get());
     }
 
-    // Release sample's D3D objects.
-    void D3D12ExecuteIndirect::ReleaseD3DResources()
+    // Transist Render Target from RENDER_TARGET to PRESENT
     {
-        m_fence.Reset();
-        ResetComPtrArray(&m_renderTargets);
-        m_commandQueue.Reset();
-        m_swapChain.Reset();
-        m_device.Reset();
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            m_renderTargets[m_frameIndex].Get(),
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_PRESENT);
+        m_commandList->ResourceBarrier(1, &barrier);
     }
 
-    // Tears down D3D resources and reinitializes them.
-    void D3D12ExecuteIndirect::RestoreD3DResources()
-    {
-        // Give GPU a chance to finish its execution in progress.
-        try
-        {
-            WaitForGpu();
-        }
-        catch (HrException&)
-        {
-            // Do nothing, currently attached adapter is unresponsive.
-        }
-        ReleaseD3DResources();
-        OnInit();
-    }
+    ExecuteGFXCommandList();
 
-    void D3D12ExecuteIndirect::OnDestroy()
-    {
-        // Ensure that the GPU is no longer referencing resources that are about to be
-        // cleaned up by the destructor.
-        WaitForGpu();
+    PIXEndEvent(m_commandQueue.Get());
 
-        CloseHandle(m_fenceEvent);
-    }
+    ThrowIfFailed(m_swapChain->Present(1, 0));
 
-    void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
-    {
-        if (key == VK_SPACE)
-        {
-            m_enableCulling = !m_enableCulling;
-        }
-        m_playerCamera.OnKeyDown(key);
-    }
+    MoveToNextFrame();
+}
 
-    void D3D12ExecuteIndirect::OnKeyUp(UINT8 key)
-    {
-        m_playerCamera.OnKeyUp(key);
-    }
+// Release sample's D3D objects.
+void D3D12ExecuteIndirect::ReleaseD3DResources()
+{
+    m_fence.Reset();
+    ResetComPtrArray(&m_renderTargets);
+    m_commandQueue.Reset();
+    m_swapChain.Reset();
+    m_device.Reset();
+}
 
-    void D3D12ExecuteIndirect::ResetGFXCommandList()
+// Tears down D3D resources and reinitializes them.
+void D3D12ExecuteIndirect::RestoreD3DResources()
+{
+    // Give GPU a chance to finish its execution in progress.
+    try
     {
-        ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset());
-        ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr));
-    }
-
-    void D3D12ExecuteIndirect::ExecuteGFXCommandList()
-    {
-        ThrowIfFailed(m_commandList->Close());
-        ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-        m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
         WaitForGpu();
     }
-
-    // Wait for pending GPU work to complete.
-    void D3D12ExecuteIndirect::WaitForGpu()
+    catch (HrException&)
     {
-        // Schedule a Signal command in the queue.
-        ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
+        // Do nothing, currently attached adapter is unresponsive.
+    }
+    ReleaseD3DResources();
+    OnInit();
+}
 
-        // Wait until the fence has been processed.
+void D3D12ExecuteIndirect::OnDestroy()
+{
+    // Ensure that the GPU is no longer referencing resources that are about to be
+    // cleaned up by the destructor.
+    WaitForGpu();
+
+    CloseHandle(m_fenceEvent);
+}
+
+void D3D12ExecuteIndirect::OnKeyDown(UINT8 key)
+{
+    if (key == VK_SPACE)
+    {
+        m_enableCulling = !m_enableCulling;
+    }
+    m_mainCam.OnKeyDown(key);
+    m_debugCam.OnKeyDown(key);
+}
+
+void D3D12ExecuteIndirect::OnKeyUp(UINT8 key)
+{
+    m_mainCam.OnKeyUp(key);
+    m_debugCam.OnKeyUp(key);
+}
+
+void D3D12ExecuteIndirect::ResetGFXCommandList()
+{
+    ThrowIfFailed(m_commandAllocators[m_frameIndex]->Reset());
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), nullptr));
+}
+
+void D3D12ExecuteIndirect::ExecuteGFXCommandList()
+{
+    ThrowIfFailed(m_commandList->Close());
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+    WaitForGpu();
+}
+
+// Wait for pending GPU work to complete.
+void D3D12ExecuteIndirect::WaitForGpu()
+{
+    // Schedule a Signal command in the queue.
+    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
+
+    // Wait until the fence has been processed.
+    ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+    WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+
+    // Increment the fence value for the current frame.
+    m_fenceValues[m_frameIndex]++;
+}
+
+// Prepare to render the next frame.
+void D3D12ExecuteIndirect::MoveToNextFrame()
+{
+    // Schedule a Signal command in the queue.
+    const UINT64 currentFenceValue = m_fenceValues[m_frameIndex];
+    ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
+
+    // Update the frame index.
+    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+    // If the next frame is not ready to be rendered yet, wait until it is ready.
+    if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
+    {
         ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
         WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-
-        // Increment the fence value for the current frame.
-        m_fenceValues[m_frameIndex]++;
     }
 
-    // Prepare to render the next frame.
-    void D3D12ExecuteIndirect::MoveToNextFrame()
-    {
-        // Schedule a Signal command in the queue.
-        const UINT64 currentFenceValue = m_fenceValues[m_frameIndex];
-        ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
-
-        // Update the frame index.
-        m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
-
-        // If the next frame is not ready to be rendered yet, wait until it is ready.
-        if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
-        {
-            ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
-            WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
-        }
-
-        // Set the fence value for the next frame.
-        m_fenceValues[m_frameIndex] = currentFenceValue + 1;
-    }
+    // Set the fence value for the next frame.
+    m_fenceValues[m_frameIndex] = currentFenceValue + 1;
+}

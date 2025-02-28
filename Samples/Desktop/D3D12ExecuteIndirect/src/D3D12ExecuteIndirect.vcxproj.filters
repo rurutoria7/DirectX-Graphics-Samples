@@ -60,6 +60,9 @@
     <ClInclude Include="StepTimer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FrustumVisualizer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -80,6 +83,9 @@
     <ClCompile Include="SimpleCamera.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FrustumVisualizer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -88,5 +94,7 @@
     <FxCompile Include="PS.hlsl" />
     <FxCompile Include="CS.hlsl" />
     <FxCompile Include="VS.hlsl" />
+    <FxCompile Include="FrustumMS.hlsl" />
+    <FxCompile Include="DebugDrawPS.hlsl" />
   </ItemGroup>
 </Project>

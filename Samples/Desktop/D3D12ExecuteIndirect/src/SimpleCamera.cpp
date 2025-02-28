@@ -25,9 +25,10 @@ SimpleCamera::SimpleCamera() :
 {
 }
 
-void SimpleCamera::Init(XMFLOAT3 position)
+void SimpleCamera::Init(XMFLOAT3 position, bool needShift)
 {
     m_initialPosition = position;
+    m_needShift = needShift;
     Reset();
 }
 
@@ -53,6 +54,8 @@ void SimpleCamera::Update(float elapsedSeconds)
 {
     // Calculate the move vector in camera space.
     XMFLOAT3 move(0, 0, 0);
+
+    if (m_needShift != m_keysPressed.lshift) return;
 
     if (m_keysPressed.a)
         move.x -= 1.0f;
@@ -105,6 +108,18 @@ void SimpleCamera::Update(float elapsedSeconds)
     m_lookDirection.z = r * cosf(m_yaw);
 }
 
+XMMATRIX SimpleCamera::GetGodViewMatrix()
+{
+    auto position = m_position;
+    auto lookDirection = m_lookDirection;
+    auto upDirection = m_upDirection;
+
+    position.y += 50.0f;
+    // look down a little bit
+    lookDirection.y = -0.5f;
+    return XMMatrixLookToRH(XMLoadFloat3(&position), XMLoadFloat3(&lookDirection), XMLoadFloat3(&upDirection));
+}
+
 XMMATRIX SimpleCamera::GetViewMatrix()
 {
     return XMMatrixLookToRH(XMLoadFloat3(&m_position), XMLoadFloat3(&m_lookDirection), XMLoadFloat3(&m_upDirection));
@@ -136,6 +151,9 @@ void SimpleCamera::OnKeyDown(WPARAM key)
         break;
     case 'E':
         m_keysPressed.e = true;
+        break;
+    case VK_SHIFT:
+        m_keysPressed.lshift = true;
         break;
     case VK_LEFT:
         m_keysPressed.left = true;
@@ -188,6 +206,9 @@ void SimpleCamera::OnKeyUp(WPARAM key)
         break;
     case VK_DOWN:
         m_keysPressed.down = false;
+        break;
+    case VK_SHIFT:
+        m_keysPressed.lshift = false;
         break;
     }
 }

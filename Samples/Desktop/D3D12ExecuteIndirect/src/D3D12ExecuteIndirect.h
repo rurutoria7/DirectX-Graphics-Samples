@@ -17,6 +17,7 @@
 #include "GenArgPass.h"
 #include "SimpleCamera.h"
 #include "StepTimer.h"
+#include "FrustumVisualizer.h"
 
 using namespace DirectX;
 
@@ -103,12 +104,15 @@ private:
 
     float                              m_fovy;
     StepTimer                          m_timer;
-    SimpleCamera m_playerCamera;
+    SimpleCamera m_mainCam;
+    SimpleCamera m_debugCam;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
     GenArgPass m_genArgPass;
     OWO::FBXLoader m_fbxLoader;
     std::string m_fbxDirName;
     std::string m_fbxFilename;
+    FrustumVisualizer m_frustumDraw;
+    
 
     // Each triangle gets its own constant buffer per frame.
     std::vector<SceneConstantBuffer> m_constantBufferData;
@@ -120,7 +124,7 @@ private:
     // Pipeline objects.
     D3D12_RECT m_cullingScissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Device> m_device;
+    ComPtr<ID3D12Device2> m_device;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_computeCommandAllocators[FrameCount];
@@ -144,7 +148,7 @@ private:
     // Asset objects.
     ComPtr<ID3D12Resource> m_upload_buffer[MAX_NUM_TEXTURES];
     ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
-    ComPtr<ID3D12GraphicsCommandList> m_commandList;
+    ComPtr<ID3D12GraphicsCommandList6> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
     ComPtr<ID3D12Resource> m_upload_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_vertexBuffer;
@@ -158,6 +162,7 @@ private:
     ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
     ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+    
 
     void LoadPipeline();
     void LoadAssets();
