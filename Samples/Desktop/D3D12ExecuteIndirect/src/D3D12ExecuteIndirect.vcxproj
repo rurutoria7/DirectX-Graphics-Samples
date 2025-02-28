@@ -68,7 +68,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>dxgi.lib;d3d12.lib;d3dcompiler.lib;dxguid.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>d3d12.dll</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>D:\Libs\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CustomBuildStep>
       <TreatOutputAsContent>true</TreatOutputAsContent>
@@ -97,7 +97,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>dxgi.lib;d3d12.lib;d3dcompiler.lib;dxguid.lib;assimp-vc143-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>d3d12.dll</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>D:\Libs\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CustomBuildStep>
       <TreatOutputAsContent>true</TreatOutputAsContent>
