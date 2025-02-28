@@ -89,6 +89,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="VisualizerCommon.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="PS.hlsl" />
