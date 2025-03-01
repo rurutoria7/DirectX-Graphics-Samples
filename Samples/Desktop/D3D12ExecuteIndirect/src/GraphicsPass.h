@@ -1,6 +1,12 @@
 #pragma once
 #include "d3dx12.h"
 
+// Data structure to match the command signature used for ExecuteIndirect.
+struct IndirectCommand
+{
+    D3D12_INDEX_BUFFER_VIEW indexBufferView;
+};
+
 template<size_t MAX_NUM_TEXTURES>
 struct GraphicsPass
 {
@@ -14,11 +20,11 @@ struct GraphicsPass
 
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;
-    ComPtr<ID3D12CommandSignature> m_vbvCommandSignature;
+    ComPtr<ID3D12CommandSignature> m_commandSignature;
 
     void Init(
-        ID3D12Device* m_device,
-        std::wstring m_assetPath
+        ID3D12Device* in_device,
+        std::wstring in_assetPath
     )
     {
         // Create Root signature
@@ -27,7 +33,7 @@ struct GraphicsPass
 
             featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
-            if (FAILED(m_device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &featureData, sizeof(featureData))))
+            if ( FAILED( in_device->CheckFeatureSupport( D3D12_FEATURE_ROOT_SIGNATURE, &featureData, sizeof( featureData ) ) ) )
             {
                 featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
             }
@@ -37,7 +43,7 @@ struct GraphicsPass
                 Cbv: CBV(b0)
             */
             CD3DX12_ROOT_PARAMETER1 rootParameters[GraphicsRootParametersCount] = {};
-            rootParameters[Cbv].InitAsConstantBufferView(0, 0);
+            rootParameters[Cbv].InitAsConstantBufferView( 0, 0 );
 
             D3D12_STATIC_SAMPLER_DESC sampler = {};
             sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -55,20 +61,20 @@ struct GraphicsPass
             sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
             CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-            rootSignatureDesc.Init_1_1(_countof(rootParameters), rootParameters, 1, &sampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED);
+            rootSignatureDesc.Init_1_1( _countof( rootParameters ), rootParameters, 1, &sampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED );
 
             ComPtr<ID3DBlob> signature;
             ComPtr<ID3DBlob> error;
-            ThrowIfFailed(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, featureData.HighestVersion, &signature, &error));
-            ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
-            NAME_D3D12_OBJECT(m_rootSignature);
+            ThrowIfFailed( D3DX12SerializeVersionedRootSignature( &rootSignatureDesc, featureData.HighestVersion, &signature, &error ) );
+            ThrowIfFailed( in_device->CreateRootSignature( 0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS( &m_rootSignature ) ) );
+            NAME_D3D12_OBJECT( m_rootSignature );
         }
 
         // Create the pipeline state, which includes compiling and loading shaders.
         {
-            std::wstring c_vsFilename = m_assetPath + L"VS.cso";
-            std::wstring c_psFilename = m_assetPath + L"PS.cso";
-            std::wstring c_csFilename = m_assetPath + L"CS.cso";
+            std::wstring c_vsFilename = in_assetPath + L"VS.cso";
+            std::wstring c_psFilename = in_assetPath + L"PS.cso";
+            std::wstring c_csFilename = in_assetPath + L"CS.cso";
 
             struct
             {
@@ -76,9 +82,9 @@ struct GraphicsPass
                 uint32_t size;
             } vshader, pshader, cshader;
 
-            ReadDataFromFile(c_vsFilename.c_str(), &vshader.data, &vshader.size);
-            ReadDataFromFile(c_psFilename.c_str(), &pshader.data, &pshader.size);
-            ReadDataFromFile(c_csFilename.c_str(), &cshader.data, &cshader.size);
+            ReadDataFromFile( c_vsFilename.c_str(), &vshader.data, &vshader.size );
+            ReadDataFromFile( c_psFilename.c_str(), &pshader.data, &pshader.size );
+            ReadDataFromFile( c_csFilename.c_str(), &cshader.data, &cshader.size );
 
 #if defined(_DEBUG)
             // Enable better shader debugging with the graphics debugging tools.
@@ -105,13 +111,13 @@ struct GraphicsPass
 
             // Describe and create the graphics pipeline state objects (PSO).
             D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-            psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+            psoDesc.InputLayout = { inputElementDescs, _countof( inputElementDescs ) };
             psoDesc.pRootSignature = m_rootSignature.Get();
             psoDesc.VS = { vshader.data, vshader.size };
             psoDesc.PS = { pshader.data, pshader.size };
-            psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+            psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC( D3D12_DEFAULT );
             psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-            psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+            psoDesc.BlendState = CD3DX12_BLEND_DESC( D3D12_DEFAULT );
             psoDesc.DepthStencilState.DepthEnable = TRUE;
             psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
             psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
@@ -123,26 +129,24 @@ struct GraphicsPass
             psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
             psoDesc.SampleDesc.Count = 1;
 
-            ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
-            NAME_D3D12_OBJECT(m_pipelineState);
+            ThrowIfFailed( in_device->CreateGraphicsPipelineState( &psoDesc, IID_PPV_ARGS( &m_pipelineState ) ) );
+            NAME_D3D12_OBJECT( m_pipelineState );
         }
 
         // Create Command signature
-#if 0
         {
-            D3D12_INDIRECT_ARGUMENT_DESC argumentDesc;
-            argumentDesc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW;
-            argumentDesc.VertexBuffer.Slot = 0;
-            
-            D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
-            commandSignatureDesc.ByteStride = sizeof (D3D12_VERTEX_BUFFER_VIEW);
-            commandSignatureDesc.NumArgumentDescs = 1;
-            commandSignatureDesc.pArgumentDescs = &argumentDesc;
-            commandSignatureDesc.NodeMask = 0;
+            // Each command consists of a CBV update and a DrawInstanced call.
+            D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[1] = {};
+            argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
+            argumentDescs[0].ConstantBufferView.RootParameterIndex = Cbv;
 
-            ThrowIfFailed (m_device->CreateCommandSignature (&commandSignatureDesc, m_rootSignature.Get (), IID_PPV_ARGS (&m_vbvCommandSignature)));
+            D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
+            commandSignatureDesc.pArgumentDescs = argumentDescs;
+            commandSignatureDesc.NumArgumentDescs = _countof( argumentDescs );
+            commandSignatureDesc.ByteStride = sizeof( IndirectCommand );
+
+            ThrowIfFailed( in_device->CreateCommandSignature( &commandSignatureDesc, m_rootSignature.Get(), IID_PPV_ARGS( &m_commandSignature ) ) );
         }
-#endif
     }
 
     void RecordCommandCommand(
@@ -154,44 +158,48 @@ struct GraphicsPass
     )
     {
         {
-            in_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+            in_commandList->OMSetRenderTargets( 1, &rtvHandle, FALSE, &dsvHandle );
             const float clearColor[] = { 0.3f, 0.2f, 0.4f, 1.0f };
 
-            if (doClear) {
-                in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-                in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+            if ( doClear )
+            {
+                in_commandList->ClearRenderTargetView( rtvHandle, clearColor, 0, nullptr );
+                in_commandList->ClearDepthStencilView( dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr );
             }
 
             // Set Pipeline state.
             {
-                in_commandList->SetPipelineState(m_pipelineState.Get());
-                in_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+                in_commandList->SetPipelineState( m_pipelineState.Get() );
+                in_commandList->SetGraphicsRootSignature( m_rootSignature.Get() );
             }
 
             // Set IA
             {
-                in_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                in_commandList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
             }
 
             // Set RS
             {
                 CD3DX12_VIEWPORT viewport;
                 CD3DX12_RECT scissorRect;
-                if (leftOrRight == 0) {
-                    viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-                    scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
+                if ( leftOrRight == 0 )
+                {
+                    viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) );
+                    scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) );
                 }
-                else if (leftOrRight < 0) {     // lefts
-                    viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width / 2), static_cast<float>(height));
-                    scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width / 2), static_cast<LONG>(height));
+                else if ( leftOrRight < 0 )
+                {     // lefts
+                    viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>(width / 2), static_cast<float>(height) );
+                    scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>(width / 2), static_cast<LONG>(height) );
                 }
-                else {     // right
-                    viewport = CD3DX12_VIEWPORT(static_cast<float>(width / 2), 0.0f, static_cast<float>(width / 2), static_cast<float>(height));
-                    scissorRect = CD3DX12_RECT(static_cast<LONG>(width / 2), 0, static_cast<LONG>(width), static_cast<LONG>(height));
+                else
+                {     // right
+                    viewport = CD3DX12_VIEWPORT( static_cast<float>(width / 2), 0.0f, static_cast<float>(width / 2), static_cast<float>(height) );
+                    scissorRect = CD3DX12_RECT( static_cast<LONG>(width / 2), 0, static_cast<LONG>(width), static_cast<LONG>(height) );
                 }
 
-                in_commandList->RSSetViewports(1, &viewport);
-                in_commandList->RSSetScissorRects(1, &scissorRect);
+                in_commandList->RSSetViewports( 1, &viewport );
+                in_commandList->RSSetScissorRects( 1, &scissorRect );
             }
         }
     }
@@ -207,27 +215,19 @@ struct GraphicsPass
     )
         // Record the rendering commands.
     {
-        //in_commandList->ExecuteIndirect (
-        //    m_vbvCommandSignature.Get (),
-        //    1,
-        //    in_vbvCommandBuffer,
-        //    0,
-        //    nullptr,
-        //    0
-        //);
         // Set IA
         {
-            in_commandList->IASetVertexBuffers(0, 1, &in_vertexBufferView);
-            in_commandList->IASetVertexBuffers(1, 1, &in_instanceBufferView);
-            in_commandList->IASetIndexBuffer(&in_indexBufferView);
+            in_commandList->IASetVertexBuffers( 0, 1, &in_vertexBufferView );
+            in_commandList->IASetVertexBuffers( 1, 1, &in_instanceBufferView );
+            in_commandList->IASetIndexBuffer( &in_indexBufferView );
         }
 
         // Set Root Parameters, CBV
         {
-            in_commandList->SetGraphicsRootConstantBufferView(Cbv, in_constantBuffer);
+            in_commandList->SetGraphicsRootConstantBufferView( Cbv, in_constantBuffer );
         }
 
         // Draw
-        in_commandList->DrawIndexedInstanced(numIndices, 5, 0, 0, 0);
+        in_commandList->DrawIndexedInstanced( numIndices, 5, 0, 0, 0 );
     }
 };

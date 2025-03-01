@@ -18,6 +18,8 @@
 #define IMPLEMENT_FBXLOADER
 #include "MyMesh.h"
 
+#include "GraphicsPass.h"
+
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = MaxNumMeshes * sizeof( IndirectCommand );
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter( D3D12ExecuteIndirect::CommandSizePerFrame );
@@ -692,11 +694,10 @@ void D3D12ExecuteIndirect::LoadAssets()
          m_upload_commandBuffer -> Map(&data)
          memcpy(data, commandsBufferData)
         */
-
-
+        void* pMappedCommandBuffer;
         CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed( m_upload_constantBuffer->Map( 0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin) ) );
-        memcpy( m_pCbvDataBegin, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof( SceneConstantBuffer ) );
+        ThrowIfFailed( m_upload_commandBuffer->Map( 0, &readRange, &pMappedCommandBuffer ) );
+        memcpy( pMappedCommandBuffer, &commandsBufferData[0], commandBufferDataSize );
     }
 
     ExecuteGFXCommandList();

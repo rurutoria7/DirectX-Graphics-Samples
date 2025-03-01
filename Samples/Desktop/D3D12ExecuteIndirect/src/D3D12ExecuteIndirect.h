@@ -77,11 +77,7 @@ private:
         float commandCount;
     };
 
-    // Data structure to match the command signature used for ExecuteIndirect.
-    struct IndirectCommand
-    {
-        D3D12_INDEX_BUFFER_VIEW indexBufferView;
-    };
+
 
 
     // Compute root signature parameter offsets.
