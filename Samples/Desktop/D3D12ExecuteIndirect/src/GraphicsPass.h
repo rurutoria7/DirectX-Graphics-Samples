@@ -24,7 +24,7 @@ struct GraphicsPass
         {
             D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
 
-            featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_2;
+            featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
 
             if (FAILED(m_device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &featureData, sizeof(featureData))))
             {
