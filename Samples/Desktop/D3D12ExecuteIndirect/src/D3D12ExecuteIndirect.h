@@ -18,6 +18,7 @@
 #include "SimpleCamera.h"
 #include "StepTimer.h"
 #include "FrustumVisualizer.h"
+#include "d3d12.h"
 
 using namespace DirectX;
 
@@ -79,8 +80,7 @@ private:
     // Data structure to match the command signature used for ExecuteIndirect.
     struct IndirectCommand
     {
-        D3D12_GPU_VIRTUAL_ADDRESS cbv;
-        D3D12_DRAW_ARGUMENTS drawArguments;
+        D3D12_VERTEX_BUFFER_VIEW vbv;
     };
 
 
@@ -150,6 +150,7 @@ private:
     ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
     ComPtr<ID3D12GraphicsCommandList6> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
+    ComPtr<ID3D12Resource> m_upload_commandBuffer;
     ComPtr<ID3D12Resource> m_upload_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_vertexBuffer;
     ComPtr<ID3D12Resource> m_default_culled_vertex_buffer;

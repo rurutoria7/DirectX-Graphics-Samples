@@ -14,6 +14,7 @@ struct GraphicsPass
 
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;
+    ComPtr<ID3D12CommandSignature> m_vbvCommandSignature;
 
     void Init(
         ID3D12Device* m_device,
@@ -125,12 +126,30 @@ struct GraphicsPass
             ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
             NAME_D3D12_OBJECT(m_pipelineState);
         }
+
+        // Create Command signature
+#if 0
+        {
+            D3D12_INDIRECT_ARGUMENT_DESC argumentDesc;
+            argumentDesc.Type = D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW;
+            argumentDesc.VertexBuffer.Slot = 0;
+            
+            D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
+            commandSignatureDesc.ByteStride = sizeof (D3D12_VERTEX_BUFFER_VIEW);
+            commandSignatureDesc.NumArgumentDescs = 1;
+            commandSignatureDesc.pArgumentDescs = &argumentDesc;
+            commandSignatureDesc.NodeMask = 0;
+
+            ThrowIfFailed (m_device->CreateCommandSignature (&commandSignatureDesc, m_rootSignature.Get (), IID_PPV_ARGS (&m_vbvCommandSignature)));
+        }
+#endif
     }
 
-    void SetAndClearRenderTarget(
+    void RecordCommandCommand(
         ID3D12GraphicsCommandList* in_commandList,
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
         D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle,
+        UINT width, UINT height, int leftOrRight,
         int doClear = 1
     )
     {
@@ -142,50 +161,62 @@ struct GraphicsPass
                 in_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
                 in_commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
             }
+
+            // Set Pipeline state.
+            {
+                in_commandList->SetPipelineState(m_pipelineState.Get());
+                in_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+            }
+
+            // Set IA
+            {
+                in_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            }
+
+            // Set RS
+            {
+                CD3DX12_VIEWPORT viewport;
+                CD3DX12_RECT scissorRect;
+                if (leftOrRight == 0) {
+                    viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
+                    scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
+                }
+                else if (leftOrRight < 0) {     // lefts
+                    viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width / 2), static_cast<float>(height));
+                    scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width / 2), static_cast<LONG>(height));
+                }
+                else {     // right
+                    viewport = CD3DX12_VIEWPORT(static_cast<float>(width / 2), 0.0f, static_cast<float>(width / 2), static_cast<float>(height));
+                    scissorRect = CD3DX12_RECT(static_cast<LONG>(width / 2), 0, static_cast<LONG>(width), static_cast<LONG>(height));
+                }
+
+                in_commandList->RSSetViewports(1, &viewport);
+                in_commandList->RSSetScissorRects(1, &scissorRect);
+            }
         }
     }
 
-    void Execute(
+    void RecordPerMeshCommand(
         ID3D12GraphicsCommandList* in_commandList,
         D3D12_VERTEX_BUFFER_VIEW in_vertexBufferView,
         D3D12_VERTEX_BUFFER_VIEW in_instanceBufferView,
         D3D12_INDEX_BUFFER_VIEW in_indexBufferView,
         D3D12_GPU_VIRTUAL_ADDRESS in_constantBuffer,
-        UINT width, UINT height, int leftOrRight,
-        UINT numIndices,
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
-        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle
+        UINT numIndices
+        //ID3D12Resource* in_vbvCommandBuffer
     )
         // Record the rendering commands.
     {
-        in_commandList->SetPipelineState(m_pipelineState.Get());
-        // Set Root signature.
-        in_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-
-        // Set RS
-        {
-            CD3DX12_VIEWPORT viewport;
-            CD3DX12_RECT scissorRect;
-            if (leftOrRight == 0) {
-                viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-                scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width), static_cast<LONG>(height));
-            } 
-            else if (leftOrRight < 0) {     // lefts
-                viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(width/2), static_cast<float>(height));
-                scissorRect = CD3DX12_RECT(0, 0, static_cast<LONG>(width/2), static_cast<LONG>(height));
-            }
-            else {     // right
-                viewport = CD3DX12_VIEWPORT(static_cast<float>(width / 2), 0.0f, static_cast<float>(width / 2), static_cast<float>(height));
-                scissorRect = CD3DX12_RECT(static_cast<LONG>(width / 2), 0, static_cast<LONG>(width), static_cast<LONG>(height));
-            }
-
-            in_commandList->RSSetViewports(1, &viewport);
-            in_commandList->RSSetScissorRects(1, &scissorRect);
-        }
-
+        //in_commandList->ExecuteIndirect (
+        //    m_vbvCommandSignature.Get (),
+        //    1,
+        //    in_vbvCommandBuffer,
+        //    0,
+        //    nullptr,
+        //    0
+        //);
         // Set IA
         {
-            in_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             in_commandList->IASetVertexBuffers(0, 1, &in_vertexBufferView);
             in_commandList->IASetVertexBuffers(1, 1, &in_instanceBufferView);
             in_commandList->IASetIndexBuffer(&in_indexBufferView);

@@ -647,6 +647,52 @@ void D3D12ExecuteIndirect::LoadAssets()
         m_frustumDraw.CreateDeviceResources(m_device.Get(), m_renderTargets[0]->GetDesc().Format, m_depthStencil->GetDesc().Format);
     }
 
+    // Create command buffer.
+    {
+        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * FrameCount * sizeof(IndirectCommand);
+
+        ThrowIfFailed(m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(commandBufferDataSize),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_upload_commandBuffer)));
+
+        NAME_D3D12_OBJECT(m_upload_commandBuffer);
+
+        std::vector<IndirectCommand> commandsBufferData(m_fbxLoader.NumMeshes());
+
+        /*
+         for i = 0 .. NumMeshes
+              cmd[i].vbv = m_default_vertexBuffer->GetGPUVirtualAddress()
+              cmd[i].vbv += i * sizeof(OWO::Vertex)
+              cmd[i].ibv = m_default_indexBuffer->GetGPUVirtualAddress()
+              cmd[i].ibv += i * sizeof(UINT)
+              cmd[i].instVBV = m_upload_instanceBuffer->GetGPUVirtualAddress()
+              cmd[i].drawArguments.IndexCountPerInstance = m_fbxLoader.GetMeshes()[i].indices.size()
+              cmd[i].drawArguments.InstanceCount = 5
+              cmd[i].drawArguments.StartIndexLocation = 0
+              cmd[i].drawArguments.BaseVertexLocation = 0
+              cmd[i].drawArguments.StartInstanceLocation = 0
+        */
+
+        for (int i = 0; i < m_fbxLoader.NumMeshes(); i++) {
+            
+        }
+        
+        /*
+         data = new IndirectCommand[NumMeshes]
+         m_upload_commandBuffer -> Map(&data)
+         memcpy(data, commandsBufferData)
+        */
+
+        
+        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(m_upload_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
+        memcpy(m_pCbvDataBegin, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof(SceneConstantBuffer));
+    }
+
     ExecuteGFXCommandList();
 }
 
@@ -765,7 +811,7 @@ void D3D12ExecuteIndirect::OnRender()
         ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-        m_graphicsPass.SetAndClearRenderTarget(m_commandList.Get(), rtvHandle, dsvHandle);
+        m_graphicsPass.RecordCommandCommand(m_commandList.Get(), rtvHandle, dsvHandle, m_width, m_height, -1);
 
         // render left (player)
         updateCameraConstant(-1);
@@ -791,16 +837,11 @@ void D3D12ExecuteIndirect::OnRender()
             D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
             constantBuffer += (i + m_frameIndex * m_fbxLoader.NumMeshes()) * sizeof(SceneConstantBuffer);
 
-            m_graphicsPass.Execute(
+            m_graphicsPass.RecordPerMeshCommand(
                 m_commandList.Get(),
-                vbv,
-                instbv,
-                ibv,
+                vbv, instbv, ibv,
                 constantBuffer,
-                m_width, m_height, -1,
-                m_fbxLoader.GetMeshes()[i].indices.size(),
-                rtvHandle,
-                dsvHandle
+                m_fbxLoader.GetMeshes()[i].indices.size()
             );
         }
     }
@@ -817,7 +858,11 @@ void D3D12ExecuteIndirect::OnRender()
         ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
         m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-        m_graphicsPass.SetAndClearRenderTarget(m_commandList.Get(), rtvHandle, dsvHandle, 0);
+        m_graphicsPass.RecordCommandCommand(
+            m_commandList.Get(),
+            rtvHandle, dsvHandle,
+            m_width, m_height, 1,
+            0 );
         updateCameraConstant(1);
         for (int i = 0; i < m_fbxLoader.GetMeshes().size(); i++)
         {
@@ -841,16 +886,13 @@ void D3D12ExecuteIndirect::OnRender()
             D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
             constantBuffer += (i + m_frameIndex * m_fbxLoader.NumMeshes()) * sizeof(SceneConstantBuffer);
 
-            m_graphicsPass.Execute(
+            m_graphicsPass.RecordPerMeshCommand(
                 m_commandList.Get(),
                 vbv,
                 instbv,
                 ibv,
                 constantBuffer,
-                m_width, m_height, 1,
-                m_fbxLoader.GetMeshes()[i].indices.size(),
-                rtvHandle,
-                dsvHandle
+                m_fbxLoader.GetMeshes()[i].indices.size()
             );
         }
         m_frustumDraw.Draw(m_commandList.Get());
