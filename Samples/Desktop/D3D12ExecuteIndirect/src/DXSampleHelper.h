@@ -10,6 +10,7 @@
 //*********************************************************
 
 #pragma once
+#include <iostream>
 #include <stdexcept>
 
 // Note that while ComPtr is used to manage the lifetime of resources on the CPU,
