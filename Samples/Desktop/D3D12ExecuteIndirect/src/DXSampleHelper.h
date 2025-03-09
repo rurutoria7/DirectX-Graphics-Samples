@@ -38,9 +38,28 @@ private:
 
 inline void ThrowIfFailed(HRESULT hr)
 {
-    if (FAILED(hr))
+    if ( FAILED( hr ) )
     {
-        throw HrException(hr);
+        // Lambda ����� HRESULT �����~�T��
+        auto getHRESULTMessage = []( HRESULT hr ) -> std::string
+            {
+                char* errorMsg = nullptr;
+
+                FormatMessageA(
+                    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                    nullptr, hr, MAKELANGID( LANG_NEUTRAL, SUBLANG_DEFAULT ),
+                    (LPSTR) &errorMsg, 0, nullptr
+                );
+
+                std::string message = (errorMsg) ? errorMsg : "Unknown error.";
+                LocalFree( errorMsg ); // ����O����
+                return message;
+            };
+
+        std::string errorMsg = "@@@ HRESULT Error: 0x" + std::to_string( hr ) + " - " + getHRESULTMessage( hr );
+
+        OutputDebugStringA( (errorMsg + "\n").c_str() );
+        std::cerr << errorMsg << std::endl;
     }
 }
 
