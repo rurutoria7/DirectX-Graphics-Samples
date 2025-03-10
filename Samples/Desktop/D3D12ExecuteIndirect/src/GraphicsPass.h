@@ -2,9 +2,14 @@
 #include "d3dx12.h"
 
 // Data structure to match the command signature used for ExecuteIndirect.
+// command per mesh : VBV, VBV, IBV, RootCBV, DrawInstanced
 struct IndirectCommand
 {
-    D3D12_INDEX_BUFFER_VIEW indexBufferView;
+    D3D12_VERTEX_BUFFER_VIEW vbv0;
+    D3D12_VERTEX_BUFFER_VIEW vbv1;
+    D3D12_INDEX_BUFFER_VIEW ibv;
+    D3D12_GPU_VIRTUAL_ADDRESS constantBufferAddr;
+    D3D12_DRAW_INDEXED_ARGUMENTS drawIndexedArgs;
 };
 
 template<size_t MAX_NUM_TEXTURES>
@@ -136,9 +141,15 @@ struct GraphicsPass
         // Create Command signature
         {
             // Each command consists of a CBV update and a DrawInstanced call.
-            D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[1] = {};
-            argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
-            argumentDescs[0].ConstantBufferView.RootParameterIndex = Cbv;
+            D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[5] = {};
+            argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW;
+            argumentDescs[0].VertexBuffer.Slot = 0;
+            argumentDescs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW;
+            argumentDescs[1].VertexBuffer.Slot = 1;
+            argumentDescs[2].Type = D3D12_INDIRECT_ARGUMENT_TYPE_INDEX_BUFFER_VIEW;
+            argumentDescs[3].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
+            argumentDescs[3].ConstantBufferView.RootParameterIndex = GraphicsPass<0>::Cbv;   // 0
+            argumentDescs[4].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
 
             D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
             commandSignatureDesc.pArgumentDescs = argumentDescs;
@@ -149,7 +160,7 @@ struct GraphicsPass
         }
     }
 
-    void RecordCommandCommand(
+    void SetBeforeDraw(
         ID3D12GraphicsCommandList* in_commandList,
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
         D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle,
@@ -204,30 +215,19 @@ struct GraphicsPass
         }
     }
 
-    void RecordPerMeshCommand(
+    void Draw(
         ID3D12GraphicsCommandList* in_commandList,
-        D3D12_VERTEX_BUFFER_VIEW in_vertexBufferView,
-        D3D12_VERTEX_BUFFER_VIEW in_instanceBufferView,
-        D3D12_INDEX_BUFFER_VIEW in_indexBufferView,
-        D3D12_GPU_VIRTUAL_ADDRESS in_constantBuffer,
-        UINT numIndices
-        //ID3D12Resource* in_vbvCommandBuffer
-    )
-        // Record the rendering commands.
+        int in_numMeshes,
+        ID3D12Resource* in_commandBuffer
+        )
     {
-        // Set IA
-        {
-            in_commandList->IASetVertexBuffers( 0, 1, &in_vertexBufferView );
-            in_commandList->IASetVertexBuffers( 1, 1, &in_instanceBufferView );
-            in_commandList->IASetIndexBuffer( &in_indexBufferView );
-        }
-
-        // Set Root Parameters, CBV
-        {
-            in_commandList->SetGraphicsRootConstantBufferView( Cbv, in_constantBuffer );
-        }
-
-        // Draw
-        in_commandList->DrawIndexedInstanced( numIndices, 5, 0, 0, 0 );
+        in_commandList->ExecuteIndirect(
+            m_commandSignature.Get(),
+            in_numMeshes,
+            in_commandBuffer,
+            0,
+            nullptr,
+            0
+        );
     }
 };
