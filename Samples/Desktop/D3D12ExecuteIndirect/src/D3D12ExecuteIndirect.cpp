@@ -20,6 +20,8 @@
 
 #include "GraphicsPass.h"
 
+//#define _DEBUG
+
 
 const UINT D3D12ExecuteIndirect::CommandSizePerFrame = MaxNumMeshes * sizeof( IndirectCommand );
 const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter( D3D12ExecuteIndirect::CommandSizePerFrame );
@@ -245,7 +247,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 
         m_device->CreateDepthStencilView( m_depthStencil.Get(), &depthStencilDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart() );
     }
-
+        
     // Create the constant buffers.
     {
         /*   Layout of upload_constantBuffer
@@ -258,7 +260,7 @@ void D3D12ExecuteIndirect::LoadAssets()
             ...
 
         */
-        const UINT constantBufferDataSize = m_fbxLoader.NumMeshes() * FrameCount * sizeof( SceneConstantBuffer );
+        const UINT constantBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( SceneConstantBuffer );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -306,133 +308,89 @@ void D3D12ExecuteIndirect::LoadAssets()
 #endif
     }
 
-    // Create the command buffers and UAVs to store the results of the compute work.
-    ComPtr<ID3D12Resource> commandBufferUpload;
-
 #if 0
     {
-        std::vector<IndirectCommand> commands;
-        commands.resize( m_fbxLoader.NumMeshes() * FrameCount );
         const UINT commandBufferSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand ) * FrameCount;
-
-        D3D12_RESOURCE_DESC commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer( commandBufferSize );
-        ThrowIfFailed( m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-            D3D12_HEAP_FLAG_NONE,
-            &commandBufferDesc,
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            nullptr,
-            IID_PPV_ARGS( &m_commandBuffer ) ) );
-
-        ThrowIfFailed( m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer( commandBufferSize ),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS( &commandBufferUpload ) ) );
-
-        NAME_D3D12_OBJECT( m_commandBuffer );
 
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = m_upload_constantBuffer->GetGPUVirtualAddress();
         UINT commandIndex = 0;
 
-        for ( UINT frame = 0; frame < FrameCount; frame++ )
+        // Create SRVs for the command buffers. 
         {
-            for ( UINT n = 0; n < m_fbxLoader.NumMeshes(); n++ )
-            {
-                commands[commandIndex].cbv = gpuAddress;
-                commands[commandIndex].drawArguments.VertexCountPerInstance = m_fbxLoader.GetMeshes()[n].vertices.size();
-                commands[commandIndex].drawArguments.InstanceCount = 1;
-                commands[commandIndex].drawArguments.StartVertexLocation = 0;
-                commands[commandIndex].drawArguments.StartInstanceLocation = 0;
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
+            srvDesc.Buffer.StructureByteStride = sizeof( IndirectCommand );
+            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
-                commandIndex++;
-                gpuAddress += sizeof( SceneConstantBuffer );
+            CD3DX12_CPU_DESCRIPTOR_HANDLE commandsHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CommandsOffset, m_cbvSrvUavDescriptorSize );
+            for ( UINT frame = 0; frame < FrameCount; frame++ )
+            {
+                srvDesc.Buffer.FirstElement = frame * m_fbxLoader.NumMeshes();
+                m_device->CreateShaderResourceView( m_upload_commandBuffer.Get(), &srvDesc, commandsHandle );
+                commandsHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
             }
         }
 
-        // Copy data to the intermediate upload heap and then schedule a copy
-        // from the upload heap to the command buffer.
-        D3D12_SUBRESOURCE_DATA commandData = {};
-        commandData.pData = reinterpret_cast<UINT8*>(&commands[0]);
-        commandData.RowPitch = commandBufferSize;
-        commandData.SlicePitch = commandData.RowPitch;
-
-        UpdateSubresources<1>( m_commandList.Get(), m_commandBuffer.Get(), commandBufferUpload.Get(), 0, 0, 1, &commandData );
-        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_commandBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE ) );
-
-        // Create SRVs for the command buffers.
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
-        srvDesc.Buffer.StructureByteStride = sizeof( IndirectCommand );
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE commandsHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CommandsOffset, m_cbvSrvUavDescriptorSize );
-        for ( UINT frame = 0; frame < FrameCount; frame++ )
-        {
-            srvDesc.Buffer.FirstElement = frame * m_fbxLoader.NumMeshes();
-            m_device->CreateShaderResourceView( m_commandBuffer.Get(), &srvDesc, commandsHandle );
-            commandsHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
-        }
-
         // Create the unordered access views (UAVs) that store the results of the compute work.
-        CD3DX12_CPU_DESCRIPTOR_HANDLE processedCommandsHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ProcessedCommandsOffset, m_cbvSrvUavDescriptorSize );
-        for ( UINT frame = 0; frame < FrameCount; frame++ )
         {
-            // Allocate a buffer large enough to hold all of the indirect commands
-            // for a single frame as well as a UAV counter.
-            commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer( CommandBufferCounterOffset + sizeof( UINT ), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
-            ThrowIfFailed( m_device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-                D3D12_HEAP_FLAG_NONE,
-                &commandBufferDesc,
-                D3D12_RESOURCE_STATE_COPY_DEST,
-                nullptr,
-                IID_PPV_ARGS( &m_processedCommandBuffers[frame] ) ) );
+            CD3DX12_CPU_DESCRIPTOR_HANDLE processedCommandsHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ProcessedCommandsOffset, m_cbvSrvUavDescriptorSize );
+            for ( UINT frame = 0; frame < FrameCount; frame++ )
+            {
+                // Allocate a buffer large enough to hold all of the indirect commands
+                // for a single frame as well as a UAV counter.
+                auto commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer( CommandBufferCounterOffset + sizeof( UINT ), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
 
-            NAME_D3D12_OBJECT_INDEXED( m_processedCommandBuffers, frame );
+                ThrowIfFailed( m_device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+                    D3D12_HEAP_FLAG_NONE,
+                    &commandBufferDesc,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    nullptr,
+                    IID_PPV_ARGS( &m_processedCommandBuffers[frame] ) ) );
 
-            D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-            uavDesc.Format = DXGI_FORMAT_UNKNOWN;
-            uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-            uavDesc.Buffer.FirstElement = 0;
-            uavDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
-            uavDesc.Buffer.StructureByteStride = sizeof( IndirectCommand );
-            uavDesc.Buffer.CounterOffsetInBytes = CommandBufferCounterOffset;
-            uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+                NAME_D3D12_OBJECT_INDEXED( m_processedCommandBuffers, frame );
 
-            m_device->CreateUnorderedAccessView(
-                m_processedCommandBuffers[frame].Get(),
-                m_processedCommandBuffers[frame].Get(),
-                &uavDesc,
-                processedCommandsHandle );
+                D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+                uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+                uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+                uavDesc.Buffer.FirstElement = 0;
+                uavDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
+                uavDesc.Buffer.StructureByteStride = sizeof( IndirectCommand );
+                uavDesc.Buffer.CounterOffsetInBytes = CommandBufferCounterOffset;
+                uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
 
-            processedCommandsHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
+                m_device->CreateUnorderedAccessView(
+                    m_processedCommandBuffers[frame].Get(),
+                    m_processedCommandBuffers[frame].Get(),
+                    &uavDesc,
+                    processedCommandsHandle );
+
+                processedCommandsHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
+            }
+
+            // Allocate a buffer that can be used to reset the UAV counters and initialize
+            // it to 0.
+            {
+                ThrowIfFailed( m_device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
+                    D3D12_HEAP_FLAG_NONE,
+                    &CD3DX12_RESOURCE_DESC::Buffer( sizeof( UINT ) ),
+                    D3D12_RESOURCE_STATE_GENERIC_READ,
+                    nullptr,
+                    IID_PPV_ARGS( &m_processedCommandBufferCounterReset ) ) );
+
+                UINT8* pMappedCounterReset = nullptr;
+                CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
+                ThrowIfFailed( m_processedCommandBufferCounterReset->Map( 0, &readRange, reinterpret_cast<void**>(&pMappedCounterReset) ) );
+                ZeroMemory( pMappedCounterReset, sizeof( UINT ) );
+                m_processedCommandBufferCounterReset->Unmap( 0, nullptr );
+            }
         }
-
-        // Allocate a buffer that can be used to reset the UAV counters and initialize
-        // it to 0.
-        ThrowIfFailed( m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer( sizeof( UINT ) ),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS( &m_processedCommandBufferCounterReset ) ) );
-
-        UINT8* pMappedCounterReset = nullptr;
-        CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed( m_processedCommandBufferCounterReset->Map( 0, &readRange, reinterpret_cast<void**>(&pMappedCounterReset) ) );
-        ZeroMemory( pMappedCounterReset, sizeof( UINT ) );
-        m_processedCommandBufferCounterReset->Unmap( 0, nullptr );
     }
 #endif
-
-
     // Create the fence
     auto createFence = [&]()
         {
@@ -661,7 +619,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 
     // Create the Command buffer.
     {
-        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * FrameCount * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -695,7 +653,7 @@ void D3D12ExecuteIndirect::LoadAssets()
             ibv.SizeInBytes = sizeof( UINT ) * m_fbxLoader.GetMeshes()[i].indices.size();
 
             D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
-            constantBuffer += (i + m_frameIndex * m_fbxLoader.NumMeshes()) * sizeof( SceneConstantBuffer );
+            constantBuffer += (i) * sizeof( SceneConstantBuffer );
 
             IndirectCommand cmd;
             cmd.vbv0 = vbv;
@@ -789,6 +747,8 @@ void D3D12ExecuteIndirect::OnRender()
         m_commandList->ResourceBarrier( 1, &barrier );
     }
 
+    auto OUO = 50;
+
     auto updateCameraConstant = [&]( int playerOrGod, float aspectRatioDiv = 2 )
         {
             if ( playerOrGod < 0 )        // play
@@ -820,9 +780,11 @@ void D3D12ExecuteIndirect::OnRender()
                 }
             }
 
-            UINT8* destination = m_pCbvDataBegin + (m_fbxLoader.NumMeshes() * m_frameIndex * sizeof( SceneConstantBuffer ));
+            UINT8* destination = m_pCbvDataBegin;
             memcpy( destination, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof( SceneConstantBuffer ) );
         };
+    
+    updateCameraConstant( -1 );
 
     // Populate command list (player).
     {
@@ -835,7 +797,6 @@ void D3D12ExecuteIndirect::OnRender()
         m_graphicsPass.SetBeforeDraw( m_commandList.Get(), rtvHandle, dsvHandle, m_width, m_height, -1, 1 );
 
         // render left (player)
-        updateCameraConstant( -1 );
 
         m_graphicsPass.Draw(
             m_commandList.Get(),
@@ -848,6 +809,8 @@ void D3D12ExecuteIndirect::OnRender()
     WaitForGpu();
 
     ResetGFXCommandList();
+
+    updateCameraConstant( 1 );
 
     // Populate command list (god).
     {
@@ -863,7 +826,6 @@ void D3D12ExecuteIndirect::OnRender()
             m_width, m_height, 1,
             0 );
 
-        updateCameraConstant( 1 );
 
         m_graphicsPass.Draw(
             m_commandList.Get(),
@@ -883,13 +845,13 @@ void D3D12ExecuteIndirect::OnRender()
     }
 
     ExecuteGFXCommandList();
-    
+
     WaitForGpu();
 
     PIXEndEvent( m_commandQueue.Get() );
 
     ThrowIfFailed( m_swapChain->Present( 1, 0 ) );
-
+        
     MoveToNextFrame();
 }
 

@@ -116,7 +116,7 @@ void FrustumVisualizer::Draw( ID3D12GraphicsCommandList6* cmdList )
 {
     // Set root signature, resources, pipeline state and dispatch
     cmdList->SetGraphicsRootSignature( m_rootSignature.Get() );
-    cmdList->SetGraphicsRootConstantBufferView( 0, m_constantResource->GetGPUVirtualAddress() + sizeof( Constants ) * m_frameIndex );
+    cmdList->SetGraphicsRootConstantBufferView( 0, m_constantResource->GetGPUVirtualAddress() + sizeof( Constants ));
 
     cmdList->SetPipelineState( m_pso.Get() );
     cmdList->DispatchMesh( 1, 1, 1 );

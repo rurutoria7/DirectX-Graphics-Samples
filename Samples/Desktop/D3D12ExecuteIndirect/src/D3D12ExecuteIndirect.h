@@ -15,10 +15,12 @@
 #include "MyMesh.h"
 #include "GraphicsPass.h"
 #include "GenArgPass.h"
+#include "ProccessCommandPass.h"
 #include "SimpleCamera.h"
 #include "StepTimer.h"
 #include "FrustumVisualizer.h"
 #include "d3d12.h"
+#include <thread>
 
 using namespace DirectX;
 

@@ -115,6 +115,7 @@
     <ClInclude Include="GenArgPass.h" />
     <ClInclude Include="GraphicsPass.h" />
     <ClInclude Include="MyMesh.h" />
+    <ClInclude Include="ProccessCommandPass.h" />
     <ClInclude Include="SimpleCamera.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="StepTimer.h" />
