@@ -44,6 +44,8 @@ public:
     virtual void OnKeyUp(UINT8 key);
     void ResetGFXCommandList();
     void ExecuteGFXCommandList();
+    void ResetComputeCommandList();
+    void ExecuteComputeCommandList();
 
 private:
     static const int MAX_NUM_TEXTURES = 20;
@@ -53,7 +55,7 @@ private:
     static const UINT MaxMeshResourceCount = MaxNumMeshes * FrameCount;
     static const UINT CommandSizePerFrame;                // The size of the indirect commands to draw all of the triangles in a single frame.
     static const UINT CommandBufferCounterOffset;        // The offset of the UAV counter in the processed command buffer.
-    static const UINT ComputeThreadBlockSize = 128;        // Should match the value in compute.hlsl.
+    static const UINT ComputeThreadBlockSize = 64;        // Should match the value in compute.hlsl.
     static const float TriangleHalfWidth;                // The x and y offsets used by the triangle vertices.
     static const float TriangleDepth;                    // The z offset used by the triangle vertices.
     static const float CullingCutoff;                    // The +/- x offset of the clipping planes in homogenous space [-1,1].
@@ -105,6 +107,7 @@ private:
     SimpleCamera m_mainCam;
     SimpleCamera m_debugCam;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
+    ProcessCommandPass m_processCommandPass;
     GenArgPass m_genArgPass;
     OWO::FBXLoader m_fbxLoader;
     std::string m_fbxDirName;
@@ -145,7 +148,7 @@ private:
 
     // Asset objects.
     ComPtr<ID3D12Resource> m_upload_buffer[MAX_NUM_TEXTURES];
-    ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
+    ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES]; 
     ComPtr<ID3D12GraphicsCommandList6> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
     ComPtr<ID3D12Resource> m_upload_commandBuffer;
@@ -160,6 +163,7 @@ private:
     ComPtr<ID3D12Resource> m_commandBuffer;
     ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
     ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
+    ComPtr<ID3D12Resource> m_default_proccessed_command_buffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
     
 
@@ -169,6 +173,7 @@ private:
     void ReleaseD3DResources();
     float GetRandomFloat(float min, float max);
     void WaitForGpu();
+    void WaitForGpuCompute();
     void MoveToNextFrame();
 
     // We pack the UAV counter into the same buffer as the commands rather than create

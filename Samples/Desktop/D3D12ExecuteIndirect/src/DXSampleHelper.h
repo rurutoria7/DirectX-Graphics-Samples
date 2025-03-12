@@ -61,6 +61,7 @@ inline void ThrowIfFailed(HRESULT hr)
 
         OutputDebugStringA( (errorMsg + "\n").c_str() );
         std::cerr << errorMsg << std::endl;
+        std::abort();
     }
 }
 

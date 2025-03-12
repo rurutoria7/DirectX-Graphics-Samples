@@ -62,6 +62,7 @@ void D3D12ExecuteIndirect::OnInit()
     LoadPipeline();
     LoadAssets();
     m_graphicsPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
+    m_processCommandPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_mainCam.Init( { 0, 15, 40 }, false );
     m_mainCam.SetMoveSpeed( 250.0f );
     m_debugCam.Init( { 0, 15, 40 }, true );
@@ -218,9 +219,6 @@ void D3D12ExecuteIndirect::LoadAssets()
         ThrowIfFailed( m_computeCommandList->Close() );
     }
 
-    NAME_D3D12_OBJECT( m_commandList );
-    NAME_D3D12_OBJECT( m_computeCommandList );
-
     // Create the depth stencil view.
     {
         D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
@@ -247,7 +245,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 
         m_device->CreateDepthStencilView( m_depthStencil.Get(), &depthStencilDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart() );
     }
-        
+
     // Create the constant buffers.
     {
         /*   Layout of upload_constantBuffer
@@ -671,6 +669,20 @@ void D3D12ExecuteIndirect::LoadAssets()
         memcpy( pMappedCommandBuffer, &commandsBufferData[0], commandBufferDataSize );
     }
 
+    // Create the Proccessed command buffer
+    {
+        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand );
+
+        auto rd = CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
+        ThrowIfFailed( m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+            D3D12_HEAP_FLAG_NONE,
+            &rd,
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            IID_PPV_ARGS( &m_default_proccessed_command_buffer ) ) );
+    }
+
     ExecuteGFXCommandList();
 }
 
@@ -736,18 +748,6 @@ void D3D12ExecuteIndirect::OnUpdate()
 void D3D12ExecuteIndirect::OnRender()
 {
     PIXBeginEvent( m_commandQueue.Get(), 0, L"Render" );
-    ResetGFXCommandList();
-
-    // Transist Render Target from PRESENT to RENDER_TARGET
-    {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            m_renderTargets[m_frameIndex].Get(),
-            D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATE_RENDER_TARGET );
-        m_commandList->ResourceBarrier( 1, &barrier );
-    }
-
-    auto OUO = 50;
 
     auto updateCameraConstant = [&]( int playerOrGod, float aspectRatioDiv = 2 )
         {
@@ -785,55 +785,115 @@ void D3D12ExecuteIndirect::OnRender()
         };
     
     updateCameraConstant( -1 );
-
-    // Populate command list (player).
+    
+    //ResetGFXCommandList();
+    
+    // Transist Render Target from PRESENT to RENDER_TARGET
     {
-        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
-        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-
-        ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
-        m_commandList->SetDescriptorHeaps( _countof( ppHeaps ), ppHeaps );
-
-        m_graphicsPass.SetBeforeDraw( m_commandList.Get(), rtvHandle, dsvHandle, m_width, m_height, -1, 1 );
-
-        // render left (player)
-
-        m_graphicsPass.Draw(
-            m_commandList.Get(),
-            m_fbxLoader.GetMeshes().size(),
-            m_upload_commandBuffer.Get() );
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            m_renderTargets[m_frameIndex].Get(),
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET );
+        m_commandList->ResourceBarrier( 1, &barrier );
     }
 
-    ExecuteGFXCommandList();
+    //ExecuteGFXCommandList();
+    
+    //ResetComputeCommandList();
 
-    WaitForGpu();
-
-    ResetGFXCommandList();
-
-    updateCameraConstant( 1 );
-
-    // Populate command list (god).
+    // Populate proccess command pass
     {
-        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
-        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+        auto upload_command_buffer_addr = m_upload_commandBuffer->GetGPUVirtualAddress();
+        auto processed_command_buffer_addr = m_default_proccessed_command_buffer->GetGPUVirtualAddress();
 
-        ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
-        m_commandList->SetDescriptorHeaps( _countof( ppHeaps ), ppHeaps );
+        m_processCommandPass.RecordDispatch(
+            m_computeCommandList.Get(),
+            upload_command_buffer_addr,
+            processed_command_buffer_addr,
+        m_fbxLoader.NumMeshes());
 
-        m_graphicsPass.SetBeforeDraw(
-            m_commandList.Get(),
-            rtvHandle, dsvHandle,
-            m_width, m_height, 1,
-            0 );
+        m_computeCommandList->SetPipelineState( m_processCommandPass.m_pipelineState.Get() );
 
 
-        m_graphicsPass.Draw(
-            m_commandList.Get(),
-            m_fbxLoader.GetMeshes().size(),
-            m_upload_commandBuffer.Get() );
+        ThrowIfFailed( m_computeCommandList->Close() );
+        ID3D12CommandList* ppCommandLists[] = { m_computeCommandList.Get() };
+        m_computeCommandQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
     }
 
-    m_frustumDraw.Draw( m_commandList.Get() );
+    {
+        ThrowIfFailed( m_computeCommandAllocators[m_frameIndex]->Reset() );
+        ThrowIfFailed( m_computeCommandList->Reset( m_computeCommandAllocators[m_frameIndex].Get(), nullptr ) );
+
+        auto upload_command_buffer_addr = m_upload_commandBuffer->GetGPUVirtualAddress();
+        auto processed_command_buffer_addr = m_default_proccessed_command_buffer->GetGPUVirtualAddress();
+
+        //m_processCommandPass.RecordDispatch(
+        //    m_computeCommandList.Get(),
+        //    upload_command_buffer_addr,
+        //    processed_command_buffer_addr,
+        //m_fbxLoader.NumMeshes());
+
+        m_computeCommandList->SetPipelineState( m_processCommandPass.m_pipelineState.Get() );
+
+
+        ThrowIfFailed( m_computeCommandList->Close() );
+        ID3D12CommandList* ppCommandLists[] = { m_computeCommandList.Get() };
+        m_computeCommandQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
+        //WaitForGpuCompute();
+
+        std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+    }
+    
+    //ExecuteComputeCommandList();
+
+    //ResetGFXCommandList();
+    
+    // Populate GFX command list (player).
+    //{
+    //    auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
+    //    auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+    //    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
+    //    m_commandList->SetDescriptorHeaps( _countof( ppHeaps ), ppHeaps );
+
+    //    m_graphicsPass.SetBeforeDraw( m_commandList.Get(), rtvHandle, dsvHandle, m_width, m_height, -1, 1 );
+
+    //    // render left (player)
+
+    //    m_graphicsPass.Draw(
+    //        m_commandList.Get(),
+    //        m_fbxLoader.GetMeshes().size(),
+    //        m_upload_commandBuffer.Get() );
+    //}
+
+    //ExecuteGFXCommandList();
+
+    //ResetGFXCommandList();
+
+    //updateCameraConstant( 1 );
+
+    // Populate GFX command list (god).
+    //{
+    //    auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
+    //    auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+    //    ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
+    //    m_commandList->SetDescriptorHeaps( _countof( ppHeaps ), ppHeaps );
+
+    //    m_graphicsPass.SetBeforeDraw(
+    //        m_commandList.Get(),
+    //        rtvHandle, dsvHandle,
+    //        m_width, m_height, 1,
+    //        0 );
+
+
+    //    m_graphicsPass.Draw(
+    //        m_commandList.Get(),
+    //        m_fbxLoader.GetMeshes().size(),
+    //        m_upload_commandBuffer.Get() );
+    //}
+
+    //m_frustumDraw.Draw( m_commandList.Get() );
 
     // Transist Render Target from RENDER_TARGET to PRESENT
     {
@@ -844,9 +904,7 @@ void D3D12ExecuteIndirect::OnRender()
         m_commandList->ResourceBarrier( 1, &barrier );
     }
 
-    ExecuteGFXCommandList();
-
-    WaitForGpu();
+    //ExecuteGFXCommandList();
 
     PIXEndEvent( m_commandQueue.Get() );
 
@@ -920,17 +978,34 @@ void D3D12ExecuteIndirect::ExecuteGFXCommandList()
     WaitForGpu();
 }
 
+void D3D12ExecuteIndirect::ResetComputeCommandList()
+{
+    ThrowIfFailed( m_computeCommandAllocators[m_frameIndex]->Reset() );
+    ThrowIfFailed( m_computeCommandList->Reset( m_computeCommandAllocators[m_frameIndex].Get(), nullptr ) );
+}
+
+void D3D12ExecuteIndirect::ExecuteComputeCommandList()
+{
+    ThrowIfFailed( m_computeCommandList->Close() );
+    ID3D12CommandList* ppCommandLists[] = { m_computeCommandList.Get() };
+    m_computeCommandQueue->ExecuteCommandLists( _countof( ppCommandLists ), ppCommandLists );
+    WaitForGpuCompute();
+}
+
+void D3D12ExecuteIndirect::WaitForGpuCompute()
+{
+    m_computeCommandQueue->Signal( m_computeFence.Get(), m_fenceValues[m_frameIndex] );
+    m_computeFence->SetEventOnCompletion( m_fenceValues[m_frameIndex], m_fenceEvent );
+    WaitForSingleObjectEx( m_fenceEvent, INFINITE, FALSE );
+    m_fenceValues[m_frameIndex]++;
+}
+
 // Wait for pending GPU work to complete.
 void D3D12ExecuteIndirect::WaitForGpu()
 {
-    // Schedule a Signal command in the queue.
     ThrowIfFailed( m_commandQueue->Signal( m_fence.Get(), m_fenceValues[m_frameIndex] ) );
-
-    // Wait until the fence has been processed.
     ThrowIfFailed( m_fence->SetEventOnCompletion( m_fenceValues[m_frameIndex], m_fenceEvent ) );
     WaitForSingleObjectEx( m_fenceEvent, INFINITE, FALSE );
-
-    // Increment the fence value for the current frame.
     m_fenceValues[m_frameIndex]++;
 }
 
