@@ -65,20 +65,8 @@ void main(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
     
     if (index < commandCount)
     {
-        // Project the left and right bounds of the triangle into homogenous space.
-        //float4 left = float4(-xOffset, 0.0f, zOffset, 1.0f) + cbv[index].offset;
-        //left = mul(left, cbv[index].projection);
-        //left /= left.w;
-
-        //float4 right = float4(xOffset, 0.0f, zOffset, 1.0f) + cbv[index].offset;
-        //right = mul(right, cbv[index].projection);
-        //right /= right.w;
-
-        // Only draw triangles that are within the culling space.
-        //if (-cullOffset < right.x && left.x < cullOffset)
-        {
-            outputCommands[index] = inputCommands[index];
-        }
+        IndirectCommand command = inputCommands[index];
+        command.draw_IndexCountPerInstance = 0;
+        outputCommands[index] = command;
     }
-
 }
