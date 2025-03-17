@@ -9,6 +9,8 @@
 #ifndef MYMESH_H
 #define MYMESH_H
 
+#define MODEL_SCALE (10.0f)
+
 namespace OWO
 {
     struct Instance {
@@ -164,9 +166,9 @@ namespace OWO
 
         for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
             Vertex vertex = {};
-            vertex.position[0] = mesh->mVertices[i].x;
-            vertex.position[1] = mesh->mVertices[i].y;
-            vertex.position[2] = mesh->mVertices[i].z;
+            vertex.position[0] = mesh->mVertices[i].x * MODEL_SCALE;
+            vertex.position[1] = mesh->mVertices[i].y * MODEL_SCALE;
+            vertex.position[2] = mesh->mVertices[i].z * MODEL_SCALE;
 
             if (mesh->HasNormals()) {
                 vertex.normal[0] = mesh->mNormals[i].x;

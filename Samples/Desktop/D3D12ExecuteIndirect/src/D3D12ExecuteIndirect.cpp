@@ -38,8 +38,8 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect( UINT width, UINT height, std::wstrin
     m_csRootConstants(),
     m_enableCulling( true ),
     m_fenceValues {},
-    m_fbxDirName( "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\Meshes\\Buildings\\" ),
-    m_fbxFilename( "building.fbx" ),
+    m_fbxDirName( "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\" ),
+    m_fbxFilename( "texturedMonkey.obj" ),
     m_fovy( XM_PI / 3 )
 {
     m_constantBufferData.resize( MaxNumMeshes * FrameCount );
@@ -63,10 +63,11 @@ void D3D12ExecuteIndirect::OnInit()
     LoadAssets();
     m_graphicsPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_processCommandPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
+    m_cullTriPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_mainCam.Init( { 0, 15, 40 }, false );
-    m_mainCam.SetMoveSpeed( 250.0f );
+    m_mainCam.SetMoveSpeed( 25.0f );
     m_debugCam.Init( { 0, 15, 40 }, true );
-    m_debugCam.SetMoveSpeed( 400.0f );
+    m_debugCam.SetMoveSpeed( 40.0f );
 }
 
 // Load the rendering pipeline dependencies.
@@ -486,6 +487,19 @@ void D3D12ExecuteIndirect::LoadAssets()
 
         UpdateSubresources<1>( m_commandList.Get(), m_default_indexBuffer.Get(), upload_indexBuffer.Get(), 0, 0, 1, &indicesData );
         m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER ) );
+
+        // todo 1: create culled index buffer
+        // same size, type default, no initilization needed
+
+        ThrowIfFailed( m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer( indexBufferSize ),
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            IID_PPV_ARGS( &m_default_culled_indexBuffer ) ) );
+
+        NAME_D3D12_OBJECT( m_default_culled_indexBuffer );
     }
 
     // Create Instance buffer.
@@ -499,7 +513,7 @@ void D3D12ExecuteIndirect::LoadAssets()
                 {
                     OWO::Instance inst;
                     auto world = XMMatrixTranslation( spacing * i, 0, 0 );
-                    world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 270.0f ) ) );
+                    world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
                     XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
                     inst.materialIndex = XMINT4( i, 0, 0, 0 );
                     instances.push_back( inst );
@@ -645,10 +659,12 @@ void D3D12ExecuteIndirect::LoadAssets()
             instbv.SizeInBytes = sizeof( OWO::Instance ) * 5;
 
             D3D12_INDEX_BUFFER_VIEW ibv;
-            ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
+            ibv.BufferLocation = m_default_culled_indexBuffer->GetGPUVirtualAddress();
             ibv.BufferLocation += m_fbxLoader.GetIndexOffset( i ) * sizeof( UINT );
             ibv.Format = DXGI_FORMAT_R32_UINT;
             ibv.SizeInBytes = sizeof( UINT ) * m_fbxLoader.GetMeshes()[i].indices.size();
+
+            // todo 2: just change reference to culled_index_buffer
 
             D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
             constantBuffer += (i) * sizeof( SceneConstantBuffer );
@@ -783,11 +799,11 @@ void D3D12ExecuteIndirect::OnRender()
             UINT8* destination = m_pCbvDataBegin;
             memcpy( destination, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof( SceneConstantBuffer ) );
         };
-    
+
     updateCameraConstant( -1 );
-    
+
     ResetGFXCommandList();
-    
+
     // Transist Render Target from PRESENT to RENDER_TARGET
     {
         auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -798,7 +814,32 @@ void D3D12ExecuteIndirect::OnRender()
     }
 
     ExecuteGFXCommandList();
-    
+
+    ResetComputeCommandList();
+
+    // Populate culled tri pass
+    {
+        float aspectRatioDiv = 2;
+        XMMATRIX view = m_mainCam.GetViewMatrix();
+        XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / aspectRatioDiv );
+        auto mvp = XMMatrixMultiply( view, proj );
+
+        auto index_buffer_addr = m_default_indexBuffer->GetGPUVirtualAddress();
+        auto culled_index_buffer_addr = m_default_culled_indexBuffer->GetGPUVirtualAddress();
+        auto vert_buffer_addr = m_default_vertexBuffer->GetGPUVirtualAddress();
+        UINT numTri = m_fbxLoader.allIndices.size() / 3;
+
+        m_cullTriPass.RecordDispatch(
+            m_computeCommandList.Get(),
+            index_buffer_addr,
+            culled_index_buffer_addr,
+            vert_buffer_addr,
+            numTri,
+            mvp);
+    }
+
+    ExecuteComputeCommandList();
+
     ResetComputeCommandList();
 
     // Populate proccess command pass
@@ -810,13 +851,13 @@ void D3D12ExecuteIndirect::OnRender()
             m_computeCommandList.Get(),
             upload_command_buffer_addr,
             processed_command_buffer_addr,
-        m_fbxLoader.NumMeshes());
+            m_fbxLoader.NumMeshes() );
     }
-    
+
     ExecuteComputeCommandList();
 
     ResetGFXCommandList();
-    
+
     // Populate GFX command list (player).
     {
         auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
@@ -877,7 +918,7 @@ void D3D12ExecuteIndirect::OnRender()
     PIXEndEvent( m_commandQueue.Get() );
 
     ThrowIfFailed( m_swapChain->Present( 1, 0 ) );
-        
+
     MoveToNextFrame();
 }
 

@@ -57,16 +57,11 @@ RWStructuredBuffer<IndirectCommand> outputCommands : register(u0); // UAV: Proce
 [numthreads(threadBlockSize, 1, 1)]
 void main(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
-    // Each thread of the CS operates on one of the indirect commands.
     uint index = (groupId.x * threadBlockSize) + groupIndex;
 
-    // Don't attempt to access commands that don't exist if more threads are allocated
-    // than commands.
-    
     if (index < commandCount)
     {
         IndirectCommand command = inputCommands[index];
-        command.draw_IndexCountPerInstance = 0;
         outputCommands[index] = command;
     }
 }

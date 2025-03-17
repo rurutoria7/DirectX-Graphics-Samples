@@ -66,6 +66,9 @@
     <ClInclude Include="ProccessCommandPass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CullTrianglePass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -100,5 +103,6 @@
     <FxCompile Include="VS.hlsl" />
     <FxCompile Include="FrustumMS.hlsl" />
     <FxCompile Include="DebugDrawPS.hlsl" />
+    <FxCompile Include="CullTri.hlsl" />
   </ItemGroup>
 </Project>

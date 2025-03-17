@@ -16,6 +16,7 @@
 #include "GraphicsPass.h"
 #include "GenArgPass.h"
 #include "ProccessCommandPass.h"
+#include "CullTrianglePass.h"
 #include "SimpleCamera.h"
 #include "StepTimer.h"
 #include "FrustumVisualizer.h"
@@ -48,10 +49,10 @@ public:
     void ExecuteComputeCommandList();
 
 private:
-    static const int MAX_NUM_TEXTURES = 20;
+    static const int MAX_NUM_TEXTURES = 1000;
 
     static const UINT FrameCount = 3;
-    static const UINT MaxNumMeshes = 100;
+    static const UINT MaxNumMeshes = 1000;
     static const UINT MaxMeshResourceCount = MaxNumMeshes * FrameCount;
     static const UINT CommandSizePerFrame;                // The size of the indirect commands to draw all of the triangles in a single frame.
     static const UINT CommandBufferCounterOffset;        // The offset of the UAV counter in the processed command buffer.
@@ -108,6 +109,7 @@ private:
     SimpleCamera m_debugCam;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
     ProcessCommandPass m_processCommandPass;
+    CullTrianglePass m_cullTriPass;
     GenArgPass m_genArgPass;
     OWO::FBXLoader m_fbxLoader;
     std::string m_fbxDirName;
