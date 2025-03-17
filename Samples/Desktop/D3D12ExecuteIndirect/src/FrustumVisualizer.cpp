@@ -103,7 +103,7 @@ void FrustumVisualizer::Update( FXMMATRIX vp, XMVECTOR( &planes )[6] )
 
     auto& constants = *(reinterpret_cast<Constants*>(m_constantData) + m_frameIndex);
 
-    XMStoreFloat4( &constants.LineColor, DirectX::Colors::Purple );
+    XMStoreFloat4( &constants.LineColor, DirectX::Colors::HotPink );
     XMStoreFloat4x4( &constants.ViewProj, XMMatrixTranspose( vp ) );
 
     for ( uint32_t i = 0; i < _countof( planes ); ++i )
