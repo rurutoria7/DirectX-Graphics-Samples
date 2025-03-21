@@ -63,7 +63,7 @@ void D3D12ExecuteIndirect::OnInit()
     LoadAssets();
     m_graphicsPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_processCommandPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
-    m_cullTriPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
+    m_cullInstancePass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_mainCam.Init( { 0, 15, 40 }, false );
     m_mainCam.SetMoveSpeed( 25.0f );
     m_debugCam.Init( { 0, 15, 40 }, true );
@@ -346,7 +346,7 @@ void D3D12ExecuteIndirect::LoadAssets()
                     &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
                     D3D12_HEAP_FLAG_NONE,
                     &commandBufferDesc,
-                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_COMMON,
                     nullptr,
                     IID_PPV_ARGS( &m_processedCommandBuffers[frame] ) ) );
 
@@ -428,7 +428,7 @@ void D3D12ExecuteIndirect::LoadAssets()
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
             D3D12_HEAP_FLAG_NONE,
             &CD3DX12_RESOURCE_DESC::Buffer( vertexBufferSize ),
-            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_COMMON,
             nullptr,
             IID_PPV_ARGS( &m_default_vertexBuffer ) ) );
 
@@ -449,7 +449,7 @@ void D3D12ExecuteIndirect::LoadAssets()
         vertexData.SlicePitch = vertexData.RowPitch;
 
         UpdateSubresources<1>( m_commandList.Get(), m_default_vertexBuffer.Get(), upload_vertexBuffer.Get(), 0, 0, 1, &vertexData );
-        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER ) );
+        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER ) );
     }
 
     // Create Index buffer.
@@ -465,7 +465,7 @@ void D3D12ExecuteIndirect::LoadAssets()
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
             D3D12_HEAP_FLAG_NONE,
             &CD3DX12_RESOURCE_DESC::Buffer( indexBufferSize ),
-            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_COMMON,
             nullptr,
             IID_PPV_ARGS( &m_default_indexBuffer ) ) );
 
@@ -486,59 +486,56 @@ void D3D12ExecuteIndirect::LoadAssets()
         indicesData.SlicePitch = indicesData.RowPitch;
 
         UpdateSubresources<1>( m_commandList.Get(), m_default_indexBuffer.Get(), upload_indexBuffer.Get(), 0, 0, 1, &indicesData );
-        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER ) );
-
-        // todo 1: create culled index buffer
-        // same size, type default, no initilization needed
-
-        ThrowIfFailed( m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer( indexBufferSize ),
-            D3D12_RESOURCE_STATE_COMMON,
-            nullptr,
-            IID_PPV_ARGS( &m_default_culled_indexBuffer ) ) );
-
-        NAME_D3D12_OBJECT( m_default_culled_indexBuffer );
+        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_INDEX_BUFFER ) );
     }
 
     // Create Instance buffer.
     {
-        auto CreateMockInstances = []() -> std::vector<OWO::Instance>
-            {
-                std::vector<OWO::Instance> instances;
-
-                float spacing = 200.0f;
-                for ( UINT i = 0; i < 5; i++ )
-                {
-                    OWO::Instance inst;
-                    auto world = XMMatrixTranslation( spacing * i, 0, 0 );
-                    world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
-                    XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
-                    inst.materialIndex = XMINT4( i, 0, 0, 0 );
-                    instances.push_back( inst );
-                }
-                return instances;
-            };
-
-        auto _instances = CreateMockInstances();
-
+        auto _instances = m_fbxLoader.GetInstances();
         const UINT instanceBufferSize = _instances.size() * sizeof( OWO::Instance );
 
-        ThrowIfFailed( m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer( instanceBufferSize ),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS( &m_upload_instanceBuffer ) ) );
+        // Create upload buffer & upload data from main memory
+        {
+            ThrowIfFailed( m_device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
+                D3D12_HEAP_FLAG_NONE,
+                &CD3DX12_RESOURCE_DESC::Buffer( instanceBufferSize ),
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                nullptr,
+                IID_PPV_ARGS( &m_upload_instanceBuffer ) ) );
 
-        NAME_D3D12_OBJECT( m_upload_instanceBuffer );
+            NAME_D3D12_OBJECT( m_upload_instanceBuffer );
 
-        UINT8* pInstanceDataBegin;
-        CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed( m_upload_instanceBuffer->Map( 0, &readRange, reinterpret_cast<void**>(&pInstanceDataBegin) ) );
-        memcpy( pInstanceDataBegin, &_instances[0], instanceBufferSize );
+            UINT8* pInstanceDataBegin;
+            CD3DX12_RANGE readRange( 0, 0 );
+            ThrowIfFailed( m_upload_instanceBuffer->Map( 0, &readRange, reinterpret_cast<void**>(&pInstanceDataBegin) ) );
+            memcpy( pInstanceDataBegin, &_instances[0], instanceBufferSize );
+        }
+
+        // Create default buffer & copy data from upload buffer
+        {
+            ThrowIfFailed( m_device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+                D3D12_HEAP_FLAG_NONE,
+                &CD3DX12_RESOURCE_DESC::Buffer( instanceBufferSize ),
+                D3D12_RESOURCE_STATE_COMMON,
+                nullptr,
+                IID_PPV_ARGS( &m_default_instanceBuffer ) ) );
+            NAME_D3D12_OBJECT( m_default_instanceBuffer );
+            m_commandList->CopyBufferRegion( m_default_instanceBuffer.Get(), 0, m_upload_instanceBuffer.Get(), 0, instanceBufferSize );
+            m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_instanceBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER ) );
+        }
+
+        // Create default proccessed buffer
+        {
+            ThrowIfFailed( m_device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+                D3D12_HEAP_FLAG_NONE,
+                &CD3DX12_RESOURCE_DESC::Buffer( instanceBufferSize ),
+                D3D12_RESOURCE_STATE_COMMON,
+                nullptr,
+                IID_PPV_ARGS( &m_default_proccessed_instanceBuffer ) ) );
+        }
     }
 
     // Create diffuse texture.
@@ -571,7 +568,7 @@ void D3D12ExecuteIndirect::LoadAssets()
                 &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
                 D3D12_HEAP_FLAG_NONE,
                 &textureDesc,
-                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_COMMON,
                 nullptr,
                 IID_PPV_ARGS( &_diffuse ) ) );
 
@@ -595,7 +592,7 @@ void D3D12ExecuteIndirect::LoadAssets()
             // Transition texture to shader resource state.
             m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition(
                 _diffuse.Get(),
-                D3D12_RESOURCE_STATE_COPY_DEST,
+                D3D12_RESOURCE_STATE_COMMON,
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE ) );
         }
     }
@@ -654,17 +651,16 @@ void D3D12ExecuteIndirect::LoadAssets()
             vbv.SizeInBytes = sizeof( OWO::Vertex ) * m_fbxLoader.GetMeshes()[i].vertices.size();
 
             D3D12_VERTEX_BUFFER_VIEW instbv;
-            instbv.BufferLocation = m_upload_instanceBuffer->GetGPUVirtualAddress();
+            instbv.BufferLocation = m_default_proccessed_instanceBuffer->GetGPUVirtualAddress();
+            instbv.BufferLocation += m_fbxLoader.GetInstanceOffset( i ) * sizeof( OWO::Instance );
             instbv.StrideInBytes = sizeof( OWO::Instance );
-            instbv.SizeInBytes = sizeof( OWO::Instance ) * 5;
+            instbv.SizeInBytes = sizeof( OWO::Instance ) * m_fbxLoader.GetMeshes()[i].instances.size();
 
             D3D12_INDEX_BUFFER_VIEW ibv;
-            ibv.BufferLocation = m_default_culled_indexBuffer->GetGPUVirtualAddress();
+            ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
             ibv.BufferLocation += m_fbxLoader.GetIndexOffset( i ) * sizeof( UINT );
             ibv.Format = DXGI_FORMAT_R32_UINT;
             ibv.SizeInBytes = sizeof( UINT ) * m_fbxLoader.GetMeshes()[i].indices.size();
-
-            // todo 2: just change reference to culled_index_buffer
 
             D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
             constantBuffer += (i) * sizeof( SceneConstantBuffer );
@@ -674,7 +670,16 @@ void D3D12ExecuteIndirect::LoadAssets()
             cmd.vbv1 = instbv;
             cmd.ibv = ibv;
             cmd.constantBufferAddr = constantBuffer;
-            cmd.drawIndexedArgs = { static_cast<unsigned>(m_fbxLoader.GetMeshes()[i].indices.size()), 1, 0, 0, 0 };
+            cmd.drawIndexedArgs = {};
+            cmd.drawIndexedArgs.IndexCountPerInstance = m_fbxLoader.GetMeshes()[i].indices.size();
+            cmd.drawIndexedArgs.InstanceCount = m_fbxLoader.GetMeshes()[i].instances.size();
+            cmd.drawIndexedArgs.StartIndexLocation = 0;
+            cmd.drawIndexedArgs.BaseVertexLocation = 0;
+            cmd.drawIndexedArgs.StartInstanceLocation = 0;
+
+            /* TOODOO: optimize command buffer (medium priority)
+            - change per - command binding for IA--> different start location in draw arguments
+            */
 
             commandsBufferData[i] = cmd;
         }
@@ -817,24 +822,20 @@ void D3D12ExecuteIndirect::OnRender()
 
     ResetComputeCommandList();
 
-    // Populate culled tri pass
+    // Populate cull instance pass
     {
-        float aspectRatioDiv = 2;
+        auto instance_buffer_addr = m_default_instanceBuffer->GetGPUVirtualAddress();
+        auto processed_instance_buffer_addr = m_default_proccessed_instanceBuffer->GetGPUVirtualAddress();
+        
         XMMATRIX view = m_mainCam.GetViewMatrix();
-        XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / aspectRatioDiv );
+        XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider );
         auto mvp = XMMatrixMultiply( view, proj );
 
-        auto index_buffer_addr = m_default_indexBuffer->GetGPUVirtualAddress();
-        auto culled_index_buffer_addr = m_default_culled_indexBuffer->GetGPUVirtualAddress();
-        auto vert_buffer_addr = m_default_vertexBuffer->GetGPUVirtualAddress();
-        UINT numTri = m_fbxLoader.allIndices.size() / 3;
-
-        m_cullTriPass.RecordDispatch(
+        m_cullInstancePass.RecordDispatch(
             m_computeCommandList.Get(),
-            index_buffer_addr,
-            culled_index_buffer_addr,
-            vert_buffer_addr,
-            numTri,
+            instance_buffer_addr,
+            processed_instance_buffer_addr,
+            m_fbxLoader.GetInstances().size(),
             mvp);
     }
 

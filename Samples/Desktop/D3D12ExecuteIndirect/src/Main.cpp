@@ -11,10 +11,11 @@
 
 #include "stdafx.h"
 #include "D3D12ExecuteIndirect.h"
+#define WINDOW_WIDTH_HEIGHT 1280, 720
 
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-    D3D12ExecuteIndirect sample(720, 720, L"D3D12 Execute Indirect sample - Press the SPACE bar to toggle GPU primitive culling");
+    D3D12ExecuteIndirect sample(WINDOW_WIDTH_HEIGHT, L"D3D12 Execute Indirect sample - Press the SPACE bar to toggle GPU primitive culling");
     return Win32Application::Run(&sample, hInstance, nCmdShow);
 }

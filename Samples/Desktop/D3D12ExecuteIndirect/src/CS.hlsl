@@ -11,14 +11,6 @@
 
 #define threadBlockSize 64
 
-struct SceneConstantBuffer
-{
-    float4 diffuseColor;
-    int4 textureID;
-    float4x4 mvp;
-    float padding[40];
-};
-
 struct IndirectCommand
 {
     uint vbv0_BufferLocation_high; // high 32 bit of uint64_t

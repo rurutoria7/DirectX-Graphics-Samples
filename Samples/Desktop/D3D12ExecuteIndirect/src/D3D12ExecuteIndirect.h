@@ -21,6 +21,7 @@
 #include "StepTimer.h"
 #include "FrustumVisualizer.h"
 #include "d3d12.h"
+#include "CullInstancePass.h"
 #include <thread>
 
 using namespace DirectX;
@@ -60,6 +61,7 @@ private:
     static const float TriangleHalfWidth;                // The x and y offsets used by the triangle vertices.
     static const float TriangleDepth;                    // The z offset used by the triangle vertices.
     static const float CullingCutoff;                    // The +/- x offset of the clipping planes in homogenous space [-1,1].
+    static const int AspectRatioDivider = 2;                // Support God & Player view
 
     // Constant buffer definition.
     struct SceneConstantBuffer
@@ -109,7 +111,7 @@ private:
     SimpleCamera m_debugCam;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
     ProcessCommandPass m_processCommandPass;
-    CullTrianglePass m_cullTriPass;
+    CullInstancePass m_cullInstancePass;
     GenArgPass m_genArgPass;
     OWO::FBXLoader m_fbxLoader;
     std::string m_fbxDirName;
@@ -155,10 +157,11 @@ private:
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
     ComPtr<ID3D12Resource> m_upload_commandBuffer;
     ComPtr<ID3D12Resource> m_upload_instanceBuffer;
+    ComPtr<ID3D12Resource> m_default_instanceBuffer;
+    ComPtr<ID3D12Resource> m_default_proccessed_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_vertexBuffer;
     ComPtr<ID3D12Resource> m_default_culled_vertex_buffer;
     ComPtr<ID3D12Resource> m_default_indexBuffer;
-    ComPtr<ID3D12Resource> m_default_culled_indexBuffer;
     ComPtr<ID3D12Resource> m_drawArgsBuffer;
     ComPtr<ID3D12Resource> m_upload_constantBuffer;
     ComPtr<ID3D12Resource> m_depthStencil;
