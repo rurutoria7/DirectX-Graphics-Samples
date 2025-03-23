@@ -25,7 +25,7 @@ struct CullInstancePass
             // slot 2: UAV, u0, culled_index_buffer
 
             CD3DX12_ROOT_PARAMETER1 computeRootParameters[3] = {};
-            computeRootParameters[0].InitAsConstants( 17, 0, 0 );
+            computeRootParameters[0].InitAsConstants( 20, 0, 0 );
             computeRootParameters[1].InitAsShaderResourceView( 0, 0 );
             computeRootParameters[2].InitAsUnorderedAccessView( 0, 0 );
 
@@ -68,10 +68,16 @@ struct CullInstancePass
         in_commandList->SetPipelineState( m_pipelineState.Get() );
         in_commandList->SetComputeRootSignature( m_rootSignature.Get() );
 
+        // Set int4 numInstance (use only x)
         in_commandList->SetComputeRoot32BitConstant( 0, in_num_inst, 0 );
+        in_commandList->SetComputeRoot32BitConstant( 0, 0, 1 );
+        in_commandList->SetComputeRoot32BitConstant( 0, 0, 2 );
+        in_commandList->SetComputeRoot32BitConstant( 0, 0, 3 );
+
+        // Set float4x4 vp
         DirectX::XMFLOAT4X4 vp_data;
         DirectX::XMStoreFloat4x4( &vp_data, XMMatrixTranspose( in_vp ) );
-        in_commandList->SetComputeRoot32BitConstants( 0, 16, &vp_data, 1 );
+        in_commandList->SetComputeRoot32BitConstants( 0, 16, &vp_data, 4 );
 
         in_commandList->SetComputeRootShaderResourceView( 1, in_inst_buffer );
         in_commandList->SetComputeRootUnorderedAccessView( 2, in_proccessed_inst_buffer);

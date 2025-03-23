@@ -48,13 +48,14 @@ RWStructuredBuffer<Instance> outInstances : register(u0);
 // 先傳入 instance 數量，再傳入 4x4 vp 矩陣
 cbuffer Constants : register(b0)
 {
-    int numInstance;
+    int4 numInstance;   // use only x
     float4x4 vp;
 };
 
 // 簡單的 clip 空間判斷函式，根據 D3D 的 clip space (z: [0, w])
 bool isInFrustum(float4 clipPos)
 {
+    clipPos.w *= 1.5f;
     bool inside = (clipPos.x >= -clipPos.w) && (clipPos.x <= clipPos.w) &&
                   (clipPos.y >= -clipPos.w) && (clipPos.y <= clipPos.w) &&
                   (clipPos.z >= 0.0f) && (clipPos.z <= clipPos.w);
@@ -65,7 +66,7 @@ bool isInFrustum(float4 clipPos)
 void main(uint3 DTid : SV_DispatchThreadID)
 {
     uint idx = DTid.x;
-    if (idx >= (uint) numInstance)
+    if (idx >= (uint) numInstance.x)
         return;
 
     // 讀取原始 instance 資料
@@ -76,8 +77,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
     float4 clipPos = mul(float4(pos, 1.0f), vp);
 
     // 判斷該 instance 是否位於可見區域
-    //if (isInFrustum(clipPos))
-    if (clipPos.x < 0)
+    if (isInFrustum(clipPos))
     {
         outInstances[idx] = inst;
     }

@@ -731,7 +731,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 
         XMMATRIX cullWorld = XMMatrixInverse( nullptr, m_mainCam.GetViewMatrix() );
         XMMATRIX cullView = m_mainCam.GetViewMatrix();
-        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio, 1.0f, 300.0f );
+        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio, 1.0f, 100.0f );
 
         XMMATRIX vp = XMMatrixTranspose( cullView * cullProj );
         XMVECTOR planes[6] =
@@ -770,12 +770,12 @@ void D3D12ExecuteIndirect::OnRender()
 {
     PIXBeginEvent( m_commandQueue.Get(), 0, L"Render" );
 
-    auto updateCameraConstant = [&]( int playerOrGod, float aspectRatioDiv = 2 )
+    auto updateCameraConstant = [&]( int playerOrGod)
         {
             if ( playerOrGod < 0 )        // play
             {
                 XMMATRIX view = m_mainCam.GetViewMatrix();
-                XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / aspectRatioDiv );
+                XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider);
                 auto mvp = XMMatrixMultiply( view, proj );
 
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
@@ -789,7 +789,7 @@ void D3D12ExecuteIndirect::OnRender()
             else        // god
             {
                 XMMATRIX view = m_debugCam.GetViewMatrix();
-                XMMATRIX proj = m_debugCam.GetProjectionMatrix( m_fovy, m_aspectRatio / aspectRatioDiv );
+                XMMATRIX proj = m_debugCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider );
                 auto mvp = XMMatrixMultiply( view, proj );
 
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
