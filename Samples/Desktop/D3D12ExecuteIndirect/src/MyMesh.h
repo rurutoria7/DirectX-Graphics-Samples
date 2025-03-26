@@ -172,14 +172,18 @@ namespace OWO
                 {
                     std::vector<Instance> res;
                     float spacing = 20;
+
                     for ( int i = 0; i < 50; i++ )
                     {
-                        Instance inst;
-                        auto world = XMMatrixTranslation( spacing * (i-25), 0, 0 );
-                        world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
-                        XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
-                        inst.materialIndex = XMINT4( i, 0, 0, 0 );
-                        res.push_back( inst );
+                        for ( int j = 0; j < 50; j++ )
+                        {
+                            Instance inst;
+                            auto world = XMMatrixTranslation( spacing * (i-25), 0, spacing * -j );
+                            world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
+                            XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
+                            inst.materialIndex = XMINT4( 0, 0, 0, 0 );
+                            res.push_back( inst );
+                        }
                     }
                     return res;
                 }
