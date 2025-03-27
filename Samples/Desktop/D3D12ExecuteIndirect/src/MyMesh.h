@@ -9,7 +9,7 @@
 #ifndef MYMESH_H
 #define MYMESH_H
 
-#define MODEL_SCALE (10.0f)
+#define MODEL_SCALE (5.0f)
 #define DEVELOP_INSTANCE
 
 namespace OWO
@@ -168,10 +168,10 @@ namespace OWO
 #ifdef DEVELOP_INSTANCE
         auto mock_instance_data = [&]( int mesh_id ) -> std::vector<Instance>
             {
-                if ( mesh_id == 0 )                // 5 instance with offset
+                if ( mesh_id == 0 )               
                 {
                     std::vector<Instance> res;
-                    float spacing = 20;
+                    float spacing = 15;
 
                     for ( int i = 0; i < 50; i++ )
                     {
@@ -187,7 +187,26 @@ namespace OWO
                     }
                     return res;
                 }
+                if ( mesh_id != 0 )
+                {
+                    std::vector<Instance> res;
+                    float spacing = 10;
+                    float spacingy = 30;
 
+                    for ( int i = 0; i < 50; i++ )
+                    {
+                        for ( int j = 0; j < 50; j++ )
+                        {
+                            Instance inst;
+                            auto world = XMMatrixTranslation( spacing * (i - 25), spacingy * j, -100);
+                            world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
+                            XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
+                            inst.materialIndex = XMINT4( 0, 0, 0, 0 );
+                            res.push_back( inst );
+                        }
+                    }
+                    return res;
+                }
                 // 1 instance no offset, default data
                 std::vector<Instance> res;
                 XMMATRIX idm = XMMatrixIdentity();

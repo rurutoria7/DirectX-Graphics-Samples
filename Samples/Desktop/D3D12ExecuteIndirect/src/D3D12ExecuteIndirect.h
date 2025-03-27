@@ -62,6 +62,9 @@ private:
     static const float TriangleDepth;                    // The z offset used by the triangle vertices.
     static const float CullingCutoff;                    // The +/- x offset of the clipping planes in homogenous space [-1,1].
     static const int AspectRatioDivider = 2;                // Support God & Player view
+    static const float FarPlaneMainCam;                    // Far plane for the main camera.
+    static const float FarPlaneDebugCam;                    // Far plane for the debug camera.
+    static const float FovDebugCam;                        // Field of view for the debug camera.
 
     // Constant buffer definition.
     struct SceneConstantBuffer

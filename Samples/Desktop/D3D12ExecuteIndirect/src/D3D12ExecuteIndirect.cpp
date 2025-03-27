@@ -28,6 +28,9 @@ const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter
 const float D3D12ExecuteIndirect::TriangleHalfWidth = 0.05f;
 const float D3D12ExecuteIndirect::TriangleDepth = 1.0f;
 const float D3D12ExecuteIndirect::CullingCutoff = 0.5f;
+const float D3D12ExecuteIndirect::FarPlaneMainCam = 700.0f;
+const float D3D12ExecuteIndirect::FarPlaneDebugCam = 2000.0f;
+const float D3D12ExecuteIndirect::FovDebugCam = XM_PI / 3;
 
 D3D12ExecuteIndirect::D3D12ExecuteIndirect( UINT width, UINT height, std::wstring name ) :
     DXSample( width, height, name ),
@@ -39,8 +42,8 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect( UINT width, UINT height, std::wstrin
     m_enableCulling( true ),
     m_fenceValues {},
     m_fbxDirName( "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\" ),
-    m_fbxFilename( "texturedMonkey.obj" ),
-    m_fovy( XM_PI / 3 )
+    m_fbxFilename( "three_in_origin.obj" ),
+    m_fovy( XM_PI / 5 )
 {
     m_constantBufferData.resize( MaxNumMeshes * FrameCount );
 
@@ -66,8 +69,8 @@ void D3D12ExecuteIndirect::OnInit()
     m_cullInstancePass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_mainCam.Init( { 0, 15, 40 }, false );
     m_mainCam.SetMoveSpeed( 25.0f );
-    m_debugCam.Init( { 0, 15, 40 }, true );
-    m_debugCam.SetMoveSpeed( 40.0f );
+    m_debugCam.Init( { 0, 50, 100 }, true );
+    m_debugCam.SetMoveSpeed( 250.0f );
 }
 
 // Load the rendering pipeline dependencies.
@@ -726,12 +729,10 @@ void D3D12ExecuteIndirect::OnUpdate()
     // Update view frustrum
     {
         XMMATRIX view = m_debugCam.GetViewMatrix();
-        XMMATRIX proj = m_debugCam.GetProjectionMatrix( m_fovy, m_aspectRatio );
-        XMMATRIX viewInv = XMMatrixInverse( nullptr, view );
+        XMMATRIX proj = m_debugCam.GetProjectionMatrix( FovDebugCam, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneDebugCam);
 
-        XMMATRIX cullWorld = XMMatrixInverse( nullptr, m_mainCam.GetViewMatrix() );
         XMMATRIX cullView = m_mainCam.GetViewMatrix();
-        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio, 1.0f, 100.0f );
+        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
 
         XMMATRIX vp = XMMatrixTranspose( cullView * cullProj );
         XMVECTOR planes[6] =
@@ -775,7 +776,7 @@ void D3D12ExecuteIndirect::OnRender()
             if ( playerOrGod < 0 )        // play
             {
                 XMMATRIX view = m_mainCam.GetViewMatrix();
-                XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider);
+                XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
                 auto mvp = XMMatrixMultiply( view, proj );
 
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
@@ -789,7 +790,7 @@ void D3D12ExecuteIndirect::OnRender()
             else        // god
             {
                 XMMATRIX view = m_debugCam.GetViewMatrix();
-                XMMATRIX proj = m_debugCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider );
+                XMMATRIX proj = m_debugCam.GetProjectionMatrix( FovDebugCam, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneDebugCam);
                 auto mvp = XMMatrixMultiply( view, proj );
 
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
@@ -828,7 +829,7 @@ void D3D12ExecuteIndirect::OnRender()
         auto processed_instance_buffer_addr = m_default_proccessed_instanceBuffer->GetGPUVirtualAddress();
         
         XMMATRIX view = m_mainCam.GetViewMatrix();
-        XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider );
+        XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
         auto mvp = XMMatrixMultiply( view, proj );
 
         m_cullInstancePass.RecordDispatch(

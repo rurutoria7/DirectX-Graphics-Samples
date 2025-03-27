@@ -55,10 +55,10 @@ cbuffer Constants : register(b0)
 // 簡單的 clip 空間判斷函式，根據 D3D 的 clip space (z: [0, w])
 bool isInFrustum(float4 clipPos)
 {
-    clipPos.w *= 1.5f;
-    bool inside = (clipPos.x >= -clipPos.w) && (clipPos.x <= clipPos.w) &&
-                  (clipPos.y >= -clipPos.w) && (clipPos.y <= clipPos.w) &&
-                  (clipPos.z >= 0.0f) && (clipPos.z <= clipPos.w);
+    clipPos /= clipPos.w;
+    bool inside = (clipPos.x >= -1.5) && (clipPos.x <= 1.5) &&
+                  (clipPos.y >= -1.5) && (clipPos.y <= 1.5) &&
+                  (clipPos.z >= -0.5) && (clipPos.z <= 1.00001);
     return inside;
 }
 

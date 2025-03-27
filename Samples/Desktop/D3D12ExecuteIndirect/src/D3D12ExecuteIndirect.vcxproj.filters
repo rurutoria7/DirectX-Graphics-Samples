@@ -99,6 +99,7 @@
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="VisualizerCommon.hlsli" />
+    <None Include="Common.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="PS.hlsl" />
@@ -108,5 +109,6 @@
     <FxCompile Include="DebugDrawPS.hlsl" />
     <FxCompile Include="CullTri.hlsl" />
     <FxCompile Include="CullInst.hlsl" />
+    <FxCompile Include="ScanGroupSum.hlsl" />
   </ItemGroup>
 </Project>
