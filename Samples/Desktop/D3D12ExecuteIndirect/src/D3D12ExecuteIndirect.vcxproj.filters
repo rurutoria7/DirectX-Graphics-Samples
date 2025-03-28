@@ -109,6 +109,6 @@
     <FxCompile Include="DebugDrawPS.hlsl" />
     <FxCompile Include="CullTri.hlsl" />
     <FxCompile Include="CullInst.hlsl" />
-    <FxCompile Include="ScanGroupSum.hlsl" />
+    <FxCompile Include="ScanInstancesCS.hlsl" />
   </ItemGroup>
 </Project>

@@ -164,6 +164,9 @@ private:
     ComPtr<ID3D12Resource> m_default_proccessed_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_vertexBuffer;
     ComPtr<ID3D12Resource> m_default_culled_vertex_buffer;
+    ComPtr<ID3D12Resource> m_default_instance_newpos_buffer;
+    ComPtr<ID3D12Resource> m_default_group_sum_buffer;
+    ComPtr<ID3D12Resource> m_default_is_instance_alive_buffer;
     ComPtr<ID3D12Resource> m_default_indexBuffer;
     ComPtr<ID3D12Resource> m_drawArgsBuffer;
     ComPtr<ID3D12Resource> m_upload_constantBuffer;

@@ -41,8 +41,13 @@ struct Instance
     int4 materialIndex;
 };
 
+struct my_uint
+{
+    uint x;
+};
+
 StructuredBuffer<Instance> inInstances : register(t0);
-RWStructuredBuffer<Instance> outInstances : register(u0);
+RWStructuredBuffer<my_uint> outInstances : register(u0);
 
 // 根常數結構，與 app 端設置一致：
 // 先傳入 instance 數量，再傳入 4x4 vp 矩陣
@@ -56,8 +61,8 @@ cbuffer Constants : register(b0)
 bool isInFrustum(float4 clipPos)
 {
     clipPos /= clipPos.w;
-    bool inside = (clipPos.x >= -1.5) && (clipPos.x <= 1.5) &&
-                  (clipPos.y >= -1.5) && (clipPos.y <= 1.5) &&
+    bool inside = (clipPos.x >= -1.1) && (clipPos.x <= 1.1) &&
+                  (clipPos.y >= -1.1) && (clipPos.y <= 1.1) &&
                   (clipPos.z >= -0.5) && (clipPos.z <= 1.00001);
     return inside;
 }
@@ -77,14 +82,13 @@ void main(uint3 DTid : SV_DispatchThreadID)
     float4 clipPos = mul(float4(pos, 1.0f), vp);
 
     // 判斷該 instance 是否位於可見區域
+// toodo
     if (isInFrustum(clipPos))
     {
-        outInstances[idx] = inst;
+        outInstances[idx].x = 1;
     }
     else
     {
-        // 若不在可見區，將 instance 的平移設定到遠處以“剔除”
-        inst.world[3] = float4(100000.0f, 100000.0f, 100000.0f, 1.0f);
-        outInstances[idx] = inst;
+        outInstances[idx].x = 0;
     }
 }
