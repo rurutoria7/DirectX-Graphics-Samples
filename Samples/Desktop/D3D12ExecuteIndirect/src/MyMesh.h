@@ -171,14 +171,15 @@ namespace OWO
                 if ( mesh_id == 0 )               
                 {
                     std::vector<Instance> res;
-                    float spacing = 15;
+                    const float spacing = 20;
+                    const int numx = 5, numy = 1;
 
-                    for ( int i = 0; i < 50; i++ )
+                    for ( int i = 0; i < numx; i++ )
                     {
-                        for ( int j = 0; j < 50; j++ )
+                        for ( int j = 0; j < numy; j++ )
                         {
                             Instance inst;
-                            auto world = XMMatrixTranslation( spacing * (i-25), 0, spacing * -j );
+                            auto world = XMMatrixTranslation( spacing * (i-numx/2), 0, spacing * -j );
                             world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
                             XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
                             inst.materialIndex = XMINT4( 0, 0, 0, 0 );
@@ -187,6 +188,7 @@ namespace OWO
                     }
                     return res;
                 }
+
                 if ( mesh_id != 0 )
                 {
                     std::vector<Instance> res;
@@ -207,6 +209,7 @@ namespace OWO
                     }
                     return res;
                 }
+
                 // 1 instance no offset, default data
                 std::vector<Instance> res;
                 XMMATRIX idm = XMMatrixIdentity();

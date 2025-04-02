@@ -160,7 +160,7 @@ private:
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
     ComPtr<ID3D12Resource> m_upload_commandBuffer;
     ComPtr<ID3D12Resource> m_upload_instanceBuffer;
-    ComPtr<ID3D12Resource> m_default_instanceBuffer;
+    ComPtr<ID3D12Resource> m_default_instance_buffer;
     ComPtr<ID3D12Resource> m_default_proccessed_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_vertexBuffer;
     ComPtr<ID3D12Resource> m_default_culled_vertex_buffer;
@@ -175,6 +175,7 @@ private:
     ComPtr<ID3D12Resource> m_processedCommandBuffers[FrameCount];
     ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
     ComPtr<ID3D12Resource> m_default_proccessed_command_buffer;
+    ComPtr<ID3D12Resource> m_default_no_culling_command_buffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
     
 

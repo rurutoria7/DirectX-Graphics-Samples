@@ -110,5 +110,6 @@
     <FxCompile Include="CullTri.hlsl" />
     <FxCompile Include="CullInst.hlsl" />
     <FxCompile Include="ScanInstancesCS.hlsl" />
+    <FxCompile Include="CopyInstanceDataCS.hlsl" />
   </ItemGroup>
 </Project>

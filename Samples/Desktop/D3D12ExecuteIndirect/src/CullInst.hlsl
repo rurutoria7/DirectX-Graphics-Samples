@@ -82,7 +82,6 @@ void main(uint3 DTid : SV_DispatchThreadID)
     float4 clipPos = mul(float4(pos, 1.0f), vp);
 
     // 判斷該 instance 是否位於可見區域
-// toodo
     if (isInFrustum(clipPos))
     {
         outInstances[idx].x = 1;
