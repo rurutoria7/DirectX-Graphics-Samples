@@ -158,7 +158,7 @@ private:
     ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES]; 
     ComPtr<ID3D12GraphicsCommandList6> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
-    ComPtr<ID3D12Resource> m_upload_commandBuffer;
+    ComPtr<ID3D12Resource> m_default_command_buffer;
     ComPtr<ID3D12Resource> m_upload_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_instance_buffer;
     ComPtr<ID3D12Resource> m_default_proccessed_instanceBuffer;

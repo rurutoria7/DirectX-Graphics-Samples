@@ -24,7 +24,7 @@ StructuredBuffer<my_uint> instancePredicatesIn : register(t0);
 RWStructuredBuffer<my_uint> groupSumArray : register(u0);
 RWStructuredBuffer<my_uint> scannedInstancePredicates : register(u1);
 
-#define NOOF_THREADS 64
+#define NOOF_THREADS 2
 
 // Based on Parallel Prefix Sum (Scan) with CUDA by Mark Harris
 groupshared uint temp[NOOF_THREADS * 2];

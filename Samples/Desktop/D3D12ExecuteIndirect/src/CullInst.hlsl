@@ -35,6 +35,33 @@
 // t0: StructuredBuffer<Instance> inInstances (原始 instance 資料)
 // u0: RWStructuredBuffer<Instance> outInstances (輸出經過篩檢的 instance)
 
+struct IndirectCommand
+{
+    uint vbv0_BufferLocation_high; // high 32 bit of uint64_t
+    uint vbv0_BufferLocation_low;
+    uint vbv0_SizeInBytes;
+    uint vbv0_StrideInBytes;
+    
+    uint vbv1_BufferLocation_high;
+    uint vbv1_BufferLocation_low;
+    uint vbv1_SizeInBytes;
+    uint vbv1_StrideInBytes;
+    
+    uint ibv_BufferLocation_high;
+    uint ibv_BufferLocation_low;
+    uint ibv_SizeInBytes;
+    uint ibv_Format;
+    
+    uint constantBUfferAddr_high;
+    uint constantBUfferAddr_low;
+    
+    uint draw_IndexCountPerInstance;
+    uint draw_InstanceCount;
+    uint draw_StartIndexLocation;
+    int draw_BaseVertexLocation;
+    uint draw_StartInstanceLocation;
+};
+
 struct Instance
 {
     float4x4 world;
@@ -48,6 +75,7 @@ struct my_uint
 
 StructuredBuffer<Instance> inInstances : register(t0);
 RWStructuredBuffer<my_uint> outInstances : register(u0);
+RWStructuredBuffer<IndirectCommand> outCommands : register(u1);
 
 // 根常數結構，與 app 端設置一致：
 // 先傳入 instance 數量，再傳入 4x4 vp 矩陣
@@ -67,13 +95,22 @@ bool isInFrustum(float4 clipPos)
     return inside;
 }
 
-[numthreads(64, 1, 1)]
-void main(uint3 DTid : SV_DispatchThreadID)
+#define NOOF_THREADS 4
+
+[numthreads(NOOF_THREADS, 1, 1)]
+void main(uint3 DTid : SV_DispatchThreadID, uint3 groupId : SV_GroupID, uint3 groupThreadId : SV_GroupThreadID)
 {
     uint idx = DTid.x;
     if (idx >= (uint) numInstance.x)
         return;
-
+    
+    if (idx == 0)
+    {
+        outCommands[0].draw_InstanceCount = 0;
+    }
+    
+    uint groupIdx = groupId.x;
+    
     // 讀取原始 instance 資料
     Instance inst = inInstances[idx];
 
@@ -85,6 +122,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
     if (isInFrustum(clipPos))
     {
         outInstances[idx].x = 1;
+        
+        InterlockedAdd(outCommands[0].draw_InstanceCount, 1);
     }
     else
     {

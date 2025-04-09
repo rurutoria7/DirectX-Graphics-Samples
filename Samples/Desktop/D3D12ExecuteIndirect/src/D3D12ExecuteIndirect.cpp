@@ -64,9 +64,12 @@ void D3D12ExecuteIndirect::OnInit()
 {
     LoadPipeline();
     LoadAssets();
+
+    auto num_inst = m_fbxLoader.GetInstances().size();
+
     m_graphicsPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_processCommandPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
-    m_cullInstancePass.init( m_device.Get(), GetAssetFullPath( L"" ) );
+    m_cullInstancePass.init( m_device.Get(), GetAssetFullPath( L"" ), num_inst );
     m_mainCam.Init( { 0, 15, 40 }, false );
     m_mainCam.SetMoveSpeed( 25.0f );
     m_debugCam.Init( { 0, 50, 100 }, true );
@@ -542,6 +545,8 @@ void D3D12ExecuteIndirect::LoadAssets()
                 D3D12_RESOURCE_STATE_COMMON,
                 nullptr,
                 IID_PPV_ARGS( &m_default_proccessed_instanceBuffer ) ) );
+
+            NAME_D3D12_OBJECT( m_default_proccessed_instanceBuffer );
         }
 
         // Create instance newpos buffer
@@ -571,20 +576,6 @@ void D3D12ExecuteIndirect::LoadAssets()
                 D3D12_RESOURCE_STATE_COMMON,
                 nullptr,
                 IID_PPV_ARGS( &m_default_is_instance_alive_buffer ) ) );
-        }
-
-        // Create group sum buffer
-        {
-            auto buffer_size = CullInstancePass::get_padded_size( _instances.size() ) * sizeof( unsigned int );
-            auto flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-            ThrowIfFailed( m_device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-                D3D12_HEAP_FLAG_NONE,
-                &CD3DX12_RESOURCE_DESC::Buffer( buffer_size, flags ),
-                D3D12_RESOURCE_STATE_COMMON,
-                nullptr,
-                IID_PPV_ARGS( &m_default_group_sum_buffer ) ) );
         }
     }
 
@@ -677,6 +668,7 @@ void D3D12ExecuteIndirect::LoadAssets()
     }
 
     // Create the Command buffer.
+    ComPtr<ID3D12Resource> upload_command_buffer;
     {
         const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand );
 
@@ -686,9 +678,17 @@ void D3D12ExecuteIndirect::LoadAssets()
             &CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize ),
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
-            IID_PPV_ARGS( &m_upload_commandBuffer ) ) );
+            IID_PPV_ARGS( &upload_command_buffer ) ) );
 
-        NAME_D3D12_OBJECT( m_upload_commandBuffer );
+        ThrowIfFailed( m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS ),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS( &m_default_command_buffer ) ) );
+
+        NAME_D3D12_OBJECT( m_default_command_buffer );
 
         // Fill the command buffer data in main memory
         std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
@@ -734,10 +734,14 @@ void D3D12ExecuteIndirect::LoadAssets()
             commandsBufferData[i] = cmd;
         }
 
-        void* pMappedCommandBuffer;
-        CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed( m_upload_commandBuffer->Map( 0, &readRange, &pMappedCommandBuffer ) );
-        memcpy( pMappedCommandBuffer, &commandsBufferData[0], commandBufferDataSize );
+        // Copy from upload_command_buffer to m_default_command_buffer
+        D3D12_SUBRESOURCE_DATA sd = {};
+        sd.pData = commandsBufferData.data();
+        sd.RowPitch = commandBufferDataSize;
+        sd.SlicePitch = sd.RowPitch;
+
+        UpdateSubresources<1>( m_commandList.Get(), m_default_command_buffer.Get(), upload_command_buffer.Get(), 0, 0, 1, &sd );
+        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE ) );
     }
 
     // Create the Proccessed command buffer
@@ -946,9 +950,8 @@ void D3D12ExecuteIndirect::OnRender()
         auto in_inst_buffer = m_default_instance_buffer.Get();
         auto out_is_inst_alive_buffer = m_default_is_instance_alive_buffer.Get();
         auto out_inst_newpos_buffer = m_default_instance_newpos_buffer.Get();
-        auto out_group_sum_buffer = m_default_group_sum_buffer.Get();
         auto out_proccessed_inst_buffer = m_default_proccessed_instanceBuffer.Get();
-        auto out_command_buffer = m_upload_commandBuffer.Get();
+        auto out_command_buffer = m_default_command_buffer.Get();
         UINT in_num_inst = m_fbxLoader.GetInstances().size();
         DirectX::XMMATRIX in_vp_no_transpose = mvp;
 
@@ -957,7 +960,6 @@ void D3D12ExecuteIndirect::OnRender()
             in_inst_buffer,
             out_is_inst_alive_buffer,
             out_inst_newpos_buffer,
-            out_group_sum_buffer,
             out_proccessed_inst_buffer,
             out_command_buffer,
             in_num_inst,
@@ -971,7 +973,7 @@ void D3D12ExecuteIndirect::OnRender()
 
     // Populate proccess command pass
     {
-        auto upload_command_buffer_addr = m_upload_commandBuffer->GetGPUVirtualAddress();
+        auto upload_command_buffer_addr = m_default_command_buffer->GetGPUVirtualAddress();
         auto processed_command_buffer_addr = m_default_proccessed_command_buffer->GetGPUVirtualAddress();
 
         m_processCommandPass.RecordDispatch(

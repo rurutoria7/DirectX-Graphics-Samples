@@ -16,7 +16,7 @@ namespace OWO
 {
     struct Instance {
         DirectX::XMFLOAT4X4 world;
-        DirectX::XMINT4 materialIndex;
+        DirectX::XMINT4 materialIndex;  // (drawcall_id, 0, 0, 0)
     };
     struct Vertex {
         float position[3];
@@ -172,7 +172,7 @@ namespace OWO
                 {
                     std::vector<Instance> res;
                     const float spacing = 20;
-                    const int numx = 5, numy = 1;
+                    const int numx = 25, numy = 25;
 
                     for ( int i = 0; i < numx; i++ )
                     {
@@ -182,7 +182,7 @@ namespace OWO
                             auto world = XMMatrixTranslation( spacing * (i-numx/2), 0, spacing * -j );
                             world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
                             XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
-                            inst.materialIndex = XMINT4( 0, 0, 0, 0 );
+                            inst.materialIndex = XMINT4( mesh_id, 0, 0, 0 );
                             res.push_back( inst );
                         }
                     }
