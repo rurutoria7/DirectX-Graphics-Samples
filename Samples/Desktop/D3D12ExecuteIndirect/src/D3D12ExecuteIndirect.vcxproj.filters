@@ -36,7 +36,7 @@
     <ClInclude Include="DXSampleHelper.h">
       <Filter>Header Files\Util</Filter>
     </ClInclude>
-    <ClInclude Include="D3D12ExecuteIndirect.h">
+    <ClInclude Include="MainRender.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Win32Application.h">
@@ -48,10 +48,7 @@
     <ClInclude Include="MyMesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GenArgPass.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GraphicsPass.h">
+    <ClInclude Include="render_pass\GraphicsPass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SimpleCamera.h">
@@ -63,13 +60,13 @@
     <ClInclude Include="FrustumVisualizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ProccessCommandPass.h">
+    <ClInclude Include="render_pass\ProccessCommandPass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CullTrianglePass.h">
+    <ClInclude Include="render_pass\CullTrianglePass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CullInstancePass.h">
+    <ClInclude Include="render_pass\CullInstancePass.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -83,7 +80,7 @@
     <ClCompile Include="DXSample.cpp">
       <Filter>Source Files\Util</Filter>
     </ClCompile>
-    <ClCompile Include="D3D12ExecuteIndirect.cpp">
+    <ClCompile Include="MainRender.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Win32Application.cpp">
@@ -98,19 +95,19 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="VisualizerCommon.hlsli" />
-    <None Include="Common.hlsl" />
+    <None Include="shader\VisualizerCommon.hlsli" />
+    <None Include="shader\Common.hlsl" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="PS.hlsl" />
-    <FxCompile Include="CS.hlsl" />
-    <FxCompile Include="VS.hlsl" />
-    <FxCompile Include="FrustumMS.hlsl" />
-    <FxCompile Include="DebugDrawPS.hlsl" />
-    <FxCompile Include="CullTri.hlsl" />
-    <FxCompile Include="CullInst.hlsl" />
-    <FxCompile Include="ScanInstancesCS.hlsl" />
-    <FxCompile Include="CopyInstanceDataCS.hlsl" />
-    <FxCompile Include="ScanGroupsCS.hlsl" />
+    <FxCompile Include="shader\PS.hlsl" />
+    <FxCompile Include="shader\ProccessCommandCS.hlsl" />
+    <FxCompile Include="shader\VS.hlsl" />
+    <FxCompile Include="shader\FrustumMS.hlsl" />
+    <FxCompile Include="shader\DebugDrawPS.hlsl" />
+    <FxCompile Include="shader\CullTri.hlsl" />
+    <FxCompile Include="shader\KillInstancesCS.hlsl" />
+    <FxCompile Include="shader\ScanInstancesCS.hlsl" />
+    <FxCompile Include="shader\CopyInstancesCS.hlsl" />
+    <FxCompile Include="shader\ScanGroupsCS.hlsl" />
   </ItemGroup>
 </Project>

@@ -8,35 +8,9 @@
 // PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
 //
 //*********************************************************
+#include "Common.hlsl"
 
-#define threadBlockSize 64
-
-struct IndirectCommand
-{
-    uint vbv0_BufferLocation_high; // high 32 bit of uint64_t
-    uint vbv0_BufferLocation_low;
-    uint vbv0_SizeInBytes;
-    uint vbv0_StrideInBytes;
-    
-    uint vbv1_BufferLocation_high;
-    uint vbv1_BufferLocation_low;
-    uint vbv1_SizeInBytes;
-    uint vbv1_StrideInBytes;
-    
-    uint ibv_BufferLocation_high;
-    uint ibv_BufferLocation_low;
-    uint ibv_SizeInBytes;
-    uint ibv_Format;
-    
-    uint constantBUfferAddr_high;
-    uint constantBUfferAddr_low;
-    
-    uint draw_IndexCountPerInstance;
-    uint draw_InstanceCount;
-    uint draw_StartIndexLocation;
-    int draw_BaseVertexLocation;
-    uint draw_StartInstanceLocation;
-};
+#define NOOF_THREADS 64
 
 cbuffer RootConstants : register(b0)
 {
@@ -46,10 +20,10 @@ cbuffer RootConstants : register(b0)
 StructuredBuffer<IndirectCommand> inputCommands : register(t0); // SRV: Indirect commands
 RWStructuredBuffer<IndirectCommand> outputCommands : register(u0); // UAV: Processed indirect commands
 
-[numthreads(threadBlockSize, 1, 1)]
+[numthreads(NOOF_THREADS, 1, 1)]
 void main(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
-    uint index = (groupId.x * threadBlockSize) + groupIndex;
+    uint index = (groupId.x * NOOF_THREADS) + groupIndex;
 
     if (index < commandCount)
     {

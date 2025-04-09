@@ -1,4 +1,3 @@
-
 SamplerState g_sampler : register(s0);
 
 cbuffer SceneConstantBuffer : register(b0)

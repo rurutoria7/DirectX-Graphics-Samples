@@ -10,54 +10,27 @@ cbuffer OcclusionPassCB : register(b1)
     unsigned int NoofInstancesPowOf2;
     unsigned int NoofDrawcalls;
     unsigned int NoofGroups;
-    float pad;  // num of 32 bit: 4 + 3 + 4 + 1 = 12
+    float pad;
 };
-struct my_uint
-{
-    uint x;
-};
-struct Instance
-{
-    float4x4 world;
-    int4 materialIndex;
-};
-struct IndirectCommand
-{
-    uint vbv0_BufferLocation_high; // high 32 bit of uint64_t
-    uint vbv0_BufferLocation_low;
-    uint vbv0_SizeInBytes;
-    uint vbv0_StrideInBytes;
-    
-    uint vbv1_BufferLocation_high;
-    uint vbv1_BufferLocation_low;
-    uint vbv1_SizeInBytes;
-    uint vbv1_StrideInBytes;
-    
-    uint ibv_BufferLocation_high;
-    uint ibv_BufferLocation_low;
-    uint ibv_SizeInBytes;
-    uint ibv_Format;
-    
-    uint constantBUfferAddr_high;
-    uint constantBUfferAddr_low;
-    
-    uint draw_IndexCountPerInstance;
-    uint draw_InstanceCount;
-    uint draw_StartIndexLocation;
-    int draw_BaseVertexLocation;
-    uint draw_StartInstanceLocation;
-};
+                         
 
 StructuredBuffer<Instance> instanceDataIn : register(t0);
 StructuredBuffer<my_uint> instancePredicatesIn : register(t1);
 StructuredBuffer<my_uint> groupSumArray : register(t2);
 StructuredBuffer<my_uint> scannedInstancePredicates : register(t3);
-
 RWStructuredBuffer<Instance> instanceDataOut : register(u0);
 
-#define NOOF_THREADS 4
+#define NOOF_THREADS (INSTANCE_COMPACTION_SCAN_BLOCK)
 
 [numthreads(NOOF_THREADS, 1, 1)]
+[RootSignature(
+    "RootConstants(num32BitConstants=12, b1), "
+    "SRV(t0), "                                
+    "SRV(t1), "                                
+    "SRV(t2), "                                
+    "SRV(t3), "                                
+    "UAV(u0)"                                  
+)]
 void copyInstanceData(uint3 threadID : SV_DispatchThreadID, uint3 groupThreadID : SV_GroupThreadID, uint3 groupID : SV_GroupID) 
 {
     int tID = threadID.x;

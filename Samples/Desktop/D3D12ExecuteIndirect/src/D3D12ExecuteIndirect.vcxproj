@@ -113,18 +113,17 @@
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="CullInstancePass.h" />
-    <ClInclude Include="CullTrianglePass.h" />
+    <ClInclude Include="render_pass\CullInstancePass.h" />
+    <ClInclude Include="render_pass\CullTrianglePass.h" />
     <ClInclude Include="FrustumVisualizer.h" />
-    <ClInclude Include="GenArgPass.h" />
-    <ClInclude Include="GraphicsPass.h" />
+    <ClInclude Include="render_pass\GraphicsPass.h" />
     <ClInclude Include="MyMesh.h" />
-    <ClInclude Include="ProccessCommandPass.h" />
+    <ClInclude Include="render_pass\ProccessCommandPass.h" />
     <ClInclude Include="SimpleCamera.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="StepTimer.h" />
     <ClInclude Include="Win32Application.h" />
-    <ClInclude Include="D3D12ExecuteIndirect.h" />
+    <ClInclude Include="MainRender.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXSampleHelper.h" />
     <ClInclude Include="DXSample.h" />
@@ -134,7 +133,7 @@
     <ClCompile Include="FrustumVisualizer.cpp" />
     <ClCompile Include="SimpleCamera.cpp" />
     <ClCompile Include="Win32Application.cpp" />
-    <ClCompile Include="D3D12ExecuteIndirect.cpp" />
+    <ClCompile Include="MainRender.cpp" />
     <ClCompile Include="DXSample.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -143,43 +142,43 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="CopyInstanceDataCS.hlsl">
+    <FxCompile Include="shader\CopyInstancesCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.6</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">copyInstanceData</EntryPointName>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">copyInstanceData</EntryPointName>
     </FxCompile>
-    <FxCompile Include="CullInst.hlsl">
+    <FxCompile Include="shader\KillInstancesCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
     </FxCompile>
-    <FxCompile Include="CullTri.hlsl">
+    <FxCompile Include="shader\CullTri.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.6</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.6</ShaderModel>
     </FxCompile>
-    <FxCompile Include="CS.hlsl">
+    <FxCompile Include="shader\ProccessCommandCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.6</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.6</ShaderModel>
     </FxCompile>
-    <FxCompile Include="DebugDrawPS.hlsl">
+    <FxCompile Include="shader\DebugDrawPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.0</ShaderModel>
     </FxCompile>
-    <FxCompile Include="FrustumMS.hlsl">
+    <FxCompile Include="shader\FrustumMS.hlsl">
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/Tms_6_5 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/Tms_6_5 %(AdditionalOptions)</AdditionalOptions>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.0</ShaderModel>
     </FxCompile>
-    <FxCompile Include="PS.hlsl">
+    <FxCompile Include="shader\PS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.6</ShaderModel>
@@ -187,7 +186,7 @@
       <DisableOptimizations Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DisableOptimizations>
       <EnableDebuggingInformation Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</EnableDebuggingInformation>
     </FxCompile>
-    <FxCompile Include="ScanGroupsCS.hlsl">
+    <FxCompile Include="shader\ScanGroupsCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
@@ -195,7 +194,7 @@
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">scanGroupSums</EntryPointName>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">scanGroupSums</EntryPointName>
     </FxCompile>
-    <FxCompile Include="ScanInstancesCS.hlsl">
+    <FxCompile Include="shader\ScanInstancesCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
@@ -203,7 +202,7 @@
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">scanInstancePredicates</EntryPointName>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">scanInstancePredicates</EntryPointName>
     </FxCompile>
-    <FxCompile Include="VS.hlsl">
+    <FxCompile Include="shader\VS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.6</ShaderModel>
@@ -211,9 +210,9 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Common.hlsl" />
+    <None Include="shader\Common.hlsl" />
     <None Include="packages.config" />
-    <None Include="VisualizerCommon.hlsli" />
+    <None Include="shader\VisualizerCommon.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

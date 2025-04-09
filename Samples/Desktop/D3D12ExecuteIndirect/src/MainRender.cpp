@@ -10,7 +10,7 @@
 //*********************************************************
 
 #include "stdafx.h"
-#include "D3D12ExecuteIndirect.h"
+#include "MainRender.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -18,21 +18,14 @@
 #define IMPLEMENT_FBXLOADER
 #include "MyMesh.h"
 
-#include "GraphicsPass.h"
+#include "render_pass/GraphicsPass.h"
 
 #define _DEBUG
 
 
-const UINT D3D12ExecuteIndirect::CommandSizePerFrame = MaxNumMeshes * sizeof( IndirectCommand );
-const UINT D3D12ExecuteIndirect::CommandBufferCounterOffset = AlignForUavCounter( D3D12ExecuteIndirect::CommandSizePerFrame );
-const float D3D12ExecuteIndirect::TriangleHalfWidth = 0.05f;
-const float D3D12ExecuteIndirect::TriangleDepth = 1.0f;
-const float D3D12ExecuteIndirect::CullingCutoff = 0.5f;
-const float D3D12ExecuteIndirect::FarPlaneMainCam = 700.0f;
-const float D3D12ExecuteIndirect::FarPlaneDebugCam = 2000.0f;
-const float D3D12ExecuteIndirect::FovDebugCam = XM_PI / 3;
+const UINT MainRender::CommandBufferCounterOffset = AlignForUavCounter( MainRender::CommandSizePerFrame );
 
-D3D12ExecuteIndirect::D3D12ExecuteIndirect( UINT width, UINT height, std::wstring name ) :
+MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
     DXSample( width, height, name ),
     m_frameIndex( 0 ),
     m_cullingScissorRect(),
@@ -41,9 +34,9 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect( UINT width, UINT height, std::wstrin
     m_csRootConstants(),
     m_enableCulling( false ),
     m_fenceValues {},
-    m_fbxDirName( "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\" ),
-    m_fbxFilename( "texturedMonkey.obj" ),
-    m_fovy( XM_PI / 5 )
+    m_fenceEvent( nullptr ),
+    m_pCbvDataBegin( nullptr ),
+    m_vertexBufferView()
 {
     m_constantBufferData.resize( MaxNumMeshes * FrameCount );
 
@@ -60,7 +53,7 @@ D3D12ExecuteIndirect::D3D12ExecuteIndirect( UINT width, UINT height, std::wstrin
     ThrowIfFailed( DXGIDeclareAdapterRemovalSupport() );
 }
 
-void D3D12ExecuteIndirect::OnInit()
+void MainRender::OnInit()
 {
     LoadPipeline();
     LoadAssets();
@@ -77,7 +70,7 @@ void D3D12ExecuteIndirect::OnInit()
 }
 
 // Load the rendering pipeline dependencies.
-void D3D12ExecuteIndirect::LoadPipeline()
+void MainRender::LoadPipeline()
 {
     UINT dxgiFactoryFlags = 0;
 
@@ -212,11 +205,11 @@ void D3D12ExecuteIndirect::LoadPipeline()
 }
 
 // Load the sample assets.
-void D3D12ExecuteIndirect::LoadAssets()
+void MainRender::LoadAssets()
 {
     // Load FBX.
     {
-        m_fbxLoader.LoadFBX( m_fbxDirName + m_fbxFilename );
+        m_fbxLoader.LoadFBX( MODEL_DIR_PATH + MODEL_FILE_NAME );
     }
 
     // Create the command list.
@@ -588,7 +581,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 
             // Load image.
             int texWidth, texHeight, texChannels;
-            std::string filename = m_fbxDirName + tex.path;
+            std::string filename = MODEL_DIR_PATH + tex.path;
             UINT8* texture = stbi_load( filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha );
 
             auto& _diffuse = m_diffuseTexture[i];
@@ -828,7 +821,7 @@ void D3D12ExecuteIndirect::LoadAssets()
 }
 
 // Get a random float value between min and max.
-float D3D12ExecuteIndirect::GetRandomFloat( float min, float max )
+float MainRender::GetRandomFloat( float min, float max )
 {
     float scale = static_cast<float>(rand()) / RAND_MAX;
     float range = max - min;
@@ -836,7 +829,7 @@ float D3D12ExecuteIndirect::GetRandomFloat( float min, float max )
 }
 
 // Update frame-based values.
-void D3D12ExecuteIndirect::OnUpdate()
+void MainRender::OnUpdate()
 {
     m_timer.Tick( NULL );
     auto frameTime = static_cast<float>(m_timer.GetElapsedSeconds());
@@ -849,7 +842,7 @@ void D3D12ExecuteIndirect::OnUpdate()
         XMMATRIX proj = m_debugCam.GetProjectionMatrix( FovDebugCam, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneDebugCam);
 
         XMMATRIX cullView = m_mainCam.GetViewMatrix();
-        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
+        XMMATRIX cullProj = m_mainCam.GetProjectionMatrix( FOV, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
 
         XMMATRIX vp = XMMatrixTranspose( cullView * cullProj );
         XMVECTOR planes[6] =
@@ -884,7 +877,7 @@ void D3D12ExecuteIndirect::OnUpdate()
 }
 
 // Render the scene.
-void D3D12ExecuteIndirect::OnRender()
+void MainRender::OnRender()
 {
     PIXBeginEvent( m_commandQueue.Get(), 0, L"Render" );
 
@@ -893,7 +886,7 @@ void D3D12ExecuteIndirect::OnRender()
             if ( playerOrGod < 0 )        // play
             {
                 XMMATRIX view = m_mainCam.GetViewMatrix();
-                XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
+                XMMATRIX proj = m_mainCam.GetProjectionMatrix( FOV, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam);
                 auto mvp = XMMatrixMultiply( view, proj );
 
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
@@ -943,7 +936,7 @@ void D3D12ExecuteIndirect::OnRender()
     // Populate cull instance pass
     {
         XMMATRIX view = m_mainCam.GetViewMatrix();
-        XMMATRIX proj = m_mainCam.GetProjectionMatrix( m_fovy, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam );
+        XMMATRIX proj = m_mainCam.GetProjectionMatrix( FOV, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam );
         auto mvp = XMMatrixMultiply( view, proj );
         
         ID3D12GraphicsCommandList* in_cmd_list = m_computeCommandList.Get();
@@ -1071,7 +1064,7 @@ void D3D12ExecuteIndirect::OnRender()
 }
 
 // Release sample's D3D objects.
-void D3D12ExecuteIndirect::ReleaseD3DResources()
+void MainRender::ReleaseD3DResources()
 {
     m_fence.Reset();
     ResetComPtrArray( &m_renderTargets );
@@ -1081,7 +1074,7 @@ void D3D12ExecuteIndirect::ReleaseD3DResources()
 }
 
 // Tears down D3D resources and reinitializes them.
-void D3D12ExecuteIndirect::RestoreD3DResources()
+void MainRender::RestoreD3DResources()
 {
     // Give GPU a chance to finish its execution in progress.
     try
@@ -1096,7 +1089,7 @@ void D3D12ExecuteIndirect::RestoreD3DResources()
     OnInit();
 }
 
-void D3D12ExecuteIndirect::OnDestroy()
+void MainRender::OnDestroy()
 {
     // Ensure that the GPU is no longer referencing resources that are about to be
     // cleaned up by the destructor.
@@ -1105,7 +1098,7 @@ void D3D12ExecuteIndirect::OnDestroy()
     CloseHandle( m_fenceEvent );
 }
 
-void D3D12ExecuteIndirect::OnKeyDown( UINT8 key )
+void MainRender::OnKeyDown( UINT8 key )
 {
     if ( key == VK_SPACE )
     {
@@ -1115,19 +1108,19 @@ void D3D12ExecuteIndirect::OnKeyDown( UINT8 key )
     m_debugCam.OnKeyDown( key );
 }
 
-void D3D12ExecuteIndirect::OnKeyUp( UINT8 key )
+void MainRender::OnKeyUp( UINT8 key )
 {
     m_mainCam.OnKeyUp( key );
     m_debugCam.OnKeyUp( key );
 }
 
-void D3D12ExecuteIndirect::ResetGFXCommandList()
+void MainRender::ResetGFXCommandList()
 {
     ThrowIfFailed( m_commandAllocators[m_frameIndex]->Reset() );
     ThrowIfFailed( m_commandList->Reset( m_commandAllocators[m_frameIndex].Get(), nullptr ) );
 }
 
-void D3D12ExecuteIndirect::ExecuteGFXCommandList()
+void MainRender::ExecuteGFXCommandList()
 {
     ThrowIfFailed( m_commandList->Close() );
     ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
@@ -1135,13 +1128,13 @@ void D3D12ExecuteIndirect::ExecuteGFXCommandList()
     WaitForGpu();
 }
 
-void D3D12ExecuteIndirect::ResetComputeCommandList()
+void MainRender::ResetComputeCommandList()
 {
     ThrowIfFailed( m_computeCommandAllocators[m_frameIndex]->Reset() );
     ThrowIfFailed( m_computeCommandList->Reset( m_computeCommandAllocators[m_frameIndex].Get(), nullptr ) );
 }
 
-void D3D12ExecuteIndirect::ExecuteComputeCommandList()
+void MainRender::ExecuteComputeCommandList()
 {
     ThrowIfFailed( m_computeCommandList->Close() );
     ID3D12CommandList* ppCommandLists[] = { m_computeCommandList.Get() };
@@ -1149,7 +1142,7 @@ void D3D12ExecuteIndirect::ExecuteComputeCommandList()
     WaitForGpuCompute();
 }
 
-void D3D12ExecuteIndirect::WaitForGpuCompute()
+void MainRender::WaitForGpuCompute()
 {
     m_computeCommandQueue->Signal( m_computeFence.Get(), m_fenceValues[m_frameIndex] );
     m_computeFence->SetEventOnCompletion( m_fenceValues[m_frameIndex], m_fenceEvent );
@@ -1158,7 +1151,7 @@ void D3D12ExecuteIndirect::WaitForGpuCompute()
 }
 
 // Wait for pending GPU work to complete.
-void D3D12ExecuteIndirect::WaitForGpu()
+void MainRender::WaitForGpu()
 {
     ThrowIfFailed( m_commandQueue->Signal( m_fence.Get(), m_fenceValues[m_frameIndex] ) );
     ThrowIfFailed( m_fence->SetEventOnCompletion( m_fenceValues[m_frameIndex], m_fenceEvent ) );
@@ -1167,7 +1160,7 @@ void D3D12ExecuteIndirect::WaitForGpu()
 }
 
 // Prepare to render the next frame.
-void D3D12ExecuteIndirect::MoveToNextFrame()
+void MainRender::MoveToNextFrame()
 {
     // Schedule a Signal command in the queue.
     const UINT64 currentFenceValue = m_fenceValues[m_frameIndex];

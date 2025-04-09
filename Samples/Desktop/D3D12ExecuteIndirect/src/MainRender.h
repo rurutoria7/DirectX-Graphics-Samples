@@ -13,15 +13,14 @@
 
 #include "DXSample.h"
 #include "MyMesh.h"
-#include "GraphicsPass.h"
-#include "GenArgPass.h"
-#include "ProccessCommandPass.h"
-#include "CullTrianglePass.h"
+#include "render_pass/GraphicsPass.h"
+#include "render_pass/ProccessCommandPass.h"
+#include "render_pass/CullTrianglePass.h"
 #include "SimpleCamera.h"
 #include "StepTimer.h"
 #include "FrustumVisualizer.h"
 #include "d3d12.h"
-#include "CullInstancePass.h"
+#include "render_pass/CullInstancePass.h"
 #include <thread>
 
 using namespace DirectX;
@@ -33,17 +32,17 @@ using namespace DirectX;
 // An example of this can be found in the class method: OnDestroy().
 using Microsoft::WRL::ComPtr;
 
-class D3D12ExecuteIndirect : public DXSample
+class MainRender : public DXSample
 {
 public:
-    D3D12ExecuteIndirect(UINT width, UINT height, std::wstring name);
+    MainRender( UINT width, UINT height, std::wstring name );
 
     virtual void OnInit();
     virtual void OnUpdate();
     virtual void OnRender();
     virtual void OnDestroy();
-    virtual void OnKeyDown(UINT8 key);
-    virtual void OnKeyUp(UINT8 key);
+    virtual void OnKeyDown( UINT8 key );
+    virtual void OnKeyUp( UINT8 key );
     void ResetGFXCommandList();
     void ExecuteGFXCommandList();
     void ResetComputeCommandList();
@@ -55,16 +54,21 @@ private:
     static const UINT FrameCount = 3;
     static const UINT MaxNumMeshes = 1000;
     static const UINT MaxMeshResourceCount = MaxNumMeshes * FrameCount;
-    static const UINT CommandSizePerFrame;                // The size of the indirect commands to draw all of the triangles in a single frame.
+    static const UINT CommandSizePerFrame = MaxNumMeshes * sizeof( IndirectCommand );                // The size of the indirect commands to draw all of the triangles in a single frame.
     static const UINT CommandBufferCounterOffset;        // The offset of the UAV counter in the processed command buffer.
     static const UINT ComputeThreadBlockSize = 64;        // Should match the value in compute.hlsl.
-    static const float TriangleHalfWidth;                // The x and y offsets used by the triangle vertices.
-    static const float TriangleDepth;                    // The z offset used by the triangle vertices.
-    static const float CullingCutoff;                    // The +/- x offset of the clipping planes in homogenous space [-1,1].
+    static constexpr const float TriangleHalfWidth = 0.05f;                // The x and y offsets used by the triangle vertices.
+    static constexpr const float TriangleDepth = 1.0f;                    // The z offset used by the triangle vertices.
+    static constexpr const float CullingCutoff = 0.5f;                    // The +/- x offset of the clipping planes in homogenous space [-1,1].
     static const int AspectRatioDivider = 2;                // Support God & Player view
-    static const float FarPlaneMainCam;                    // Far plane for the main camera.
-    static const float FarPlaneDebugCam;                    // Far plane for the debug camera.
-    static const float FovDebugCam;                        // Field of view for the debug camera.
+    static constexpr const float FarPlaneMainCam = 700.0f;                    // Far plane for the main camera.
+    static constexpr const float FarPlaneDebugCam = 2000.0f;                    // Far plane for the debug camera.
+    static constexpr const float FovDebugCam = XM_PI / 3;                        // Field of view for the debug camera.
+
+    std::string MODEL_DIR_PATH = "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\";
+    std::string MODEL_FILE_NAME = "texturedMonkey.obj";
+    float FOV = XM_PI / 5;
+
 
     // Constant buffer definition.
     struct SceneConstantBuffer
@@ -87,9 +91,6 @@ private:
         float commandCount;
     };
 
-
-
-
     // Compute root signature parameter offsets.
     enum ComputeRootParameters
     {
@@ -108,19 +109,15 @@ private:
         CbvSrvUavDescriptorCountPerFrame = TextureOffset + MAX_NUM_TEXTURES,    // The number of descriptors per frame.
     };
 
-    float                              m_fovy;
     StepTimer                          m_timer;
     SimpleCamera m_mainCam;
     SimpleCamera m_debugCam;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
     ProcessCommandPass m_processCommandPass;
     CullInstancePass m_cullInstancePass;
-    GenArgPass m_genArgPass;
     OWO::FBXLoader m_fbxLoader;
-    std::string m_fbxDirName;
-    std::string m_fbxFilename;
     FrustumVisualizer m_frustumDraw;
-    
+
 
     // Each triangle gets its own constant buffer per frame.
     std::vector<SceneConstantBuffer> m_constantBufferData;
@@ -155,7 +152,7 @@ private:
 
     // Asset objects.
     ComPtr<ID3D12Resource> m_upload_buffer[MAX_NUM_TEXTURES];
-    ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES]; 
+    ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
     ComPtr<ID3D12GraphicsCommandList6> m_commandList;
     ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
     ComPtr<ID3D12Resource> m_default_command_buffer;
@@ -177,13 +174,13 @@ private:
     ComPtr<ID3D12Resource> m_default_proccessed_command_buffer;
     ComPtr<ID3D12Resource> m_default_no_culling_command_buffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
-    
+
 
     void LoadPipeline();
     void LoadAssets();
     void RestoreD3DResources();
     void ReleaseD3DResources();
-    float GetRandomFloat(float min, float max);
+    float GetRandomFloat( float min, float max );
     void WaitForGpu();
     void WaitForGpuCompute();
     void MoveToNextFrame();
@@ -192,7 +189,7 @@ private:
     // a separate 64K resource/heap for it. The counter must be aligned on 4K boundaries,
     // so we pad the command buffer (if necessary) such that the counter will be placed
     // at a valid location in the buffer.
-    static inline UINT AlignForUavCounter(UINT bufferSize)
+    static inline UINT AlignForUavCounter( UINT bufferSize )
     {
         const UINT alignment = D3D12_UAV_COUNTER_PLACEMENT_ALIGNMENT;
         return (bufferSize + (alignment - 1)) & ~(alignment - 1);

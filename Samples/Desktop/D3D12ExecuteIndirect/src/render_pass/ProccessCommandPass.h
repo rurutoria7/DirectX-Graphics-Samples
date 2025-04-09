@@ -36,7 +36,7 @@ struct ProcessCommandPass
 
         // Create the pipeline state
         {
-            std::wstring c_csFilename = in_assetPath + L"CS.cso";
+            std::wstring c_csFilename = in_assetPath + L"ProccessCommandCS.cso";
 
             struct
             {
