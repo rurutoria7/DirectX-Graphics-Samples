@@ -24,17 +24,17 @@ struct CullInstancePass
     static const int NUM_THREADS_OF_SCAN_PREFIX = SCAN_BLOCK / 2;
     static const int NUM_THREADS_OF_COPY_INSTANCE_DATA = SCAN_BLOCK;
 
-    ComPtr<ID3D12RootSignature> m_rs_kill_instances_pass;
-    ComPtr<ID3D12PipelineState> m_pso_kill_instances_pass;
+    ComPtr<ID3D12RootSignature> m_rs_kill_instance_pass;
+    ComPtr<ID3D12PipelineState> m_pso_kill_instance_pass;
 
-    ComPtr<ID3D12RootSignature> m_rs_scan_instances_pass;
-    ComPtr<ID3D12PipelineState> m_pso_scan_instances_pass;
+    ComPtr<ID3D12RootSignature> m_rs_scan_prefix_pass;
+    ComPtr<ID3D12PipelineState> m_pso_scan_prefix_pass;
 
-    ComPtr<ID3D12RootSignature> m_rs_scan_groups_pass;
-    ComPtr<ID3D12PipelineState> m_pso_scan_groups_pass;
+    ComPtr<ID3D12RootSignature> m_rs_scan_group_pass;
+    ComPtr<ID3D12PipelineState> m_pso_scan_group_pass;
 
-    ComPtr<ID3D12RootSignature> m_rs_copy_instances_pass;
-    ComPtr<ID3D12PipelineState> m_pso_copy_instances_pass;
+    ComPtr<ID3D12RootSignature> m_rs_copy_instance_pass;
+    ComPtr<ID3D12PipelineState> m_pso_copy_instance_pass;
 
     ComPtr<ID3D12Resource> m_scanned_group_sum_buffer;
     ComPtr<ID3D12Resource> m_group_sum_buffer;
@@ -86,10 +86,10 @@ struct CullInstancePass
                     IID_PPV_ARGS( &res ) ) );
             };
 
-        create_pso_rs( L"KillInstancesCS.cso", m_rs_kill_instances_pass, m_pso_kill_instances_pass );
-        create_pso_rs( L"ScanInstancesCS.cso", m_rs_scan_instances_pass, m_pso_scan_instances_pass );
-        create_pso_rs( L"ScanGroupsCS.cso", m_rs_scan_groups_pass, m_pso_scan_groups_pass );
-        create_pso_rs( L"CopyInstancesCS.cso", m_rs_copy_instances_pass, m_pso_copy_instances_pass );
+        create_pso_rs( L"KillInstancesCS.cso", m_rs_kill_instance_pass, m_pso_kill_instance_pass );
+        create_pso_rs( L"ScanInstancesCS.cso", m_rs_scan_prefix_pass, m_pso_scan_prefix_pass );
+        create_pso_rs( L"ScanGroupsCS.cso", m_rs_scan_group_pass, m_pso_scan_group_pass );
+        create_pso_rs( L"CopyInstancesCS.cso", m_rs_copy_instance_pass, m_pso_copy_instance_pass );
 
         create_group_sum_buffer( m_group_sum_buffer );
         create_group_sum_buffer( m_scanned_group_sum_buffer );
@@ -119,8 +119,8 @@ struct CullInstancePass
             auto out_is_inst_alive_buffer,
             auto out_command_buffer )
             {
-                in_cmd_list->SetPipelineState( m_pso_kill_instances_pass.Get() );
-                in_cmd_list->SetComputeRootSignature( m_rs_kill_instances_pass.Get() );
+                in_cmd_list->SetPipelineState( m_pso_kill_instance_pass.Get() );
+                in_cmd_list->SetComputeRootSignature( m_rs_kill_instance_pass.Get() );
 
                 // Set int4 numInstance (use only x)
                 in_cmd_list->SetComputeRoot32BitConstant( 0, in_num_inst, 0 );
@@ -140,13 +140,13 @@ struct CullInstancePass
                 in_cmd_list->Dispatch( num_groups, 1, 1 );
             };
 
-        auto dispatch_scan_instances = [in_cmd_list, this, in_num_inst](
+        auto dispatch_scan_prefix = [in_cmd_list, this, in_num_inst](
             auto in_is_inst_alive_buffer,
             auto out_inst_newpos_buffer,
             auto out_group_sum_buffer )
             {
-                in_cmd_list->SetPipelineState( m_pso_scan_instances_pass.Get() );
-                in_cmd_list->SetComputeRootSignature( m_rs_scan_instances_pass.Get() );
+                in_cmd_list->SetPipelineState( m_pso_scan_prefix_pass.Get() );
+                in_cmd_list->SetComputeRootSignature( m_rs_scan_prefix_pass.Get() );
 
                 // slot 0: constant <--> cbuffer OcclusionPassCB, b1
                 in_cmd_list->SetComputeRoot32BitConstants( 0, 12, &m_cb, 0 );
@@ -165,12 +165,12 @@ struct CullInstancePass
                 in_cmd_list->Dispatch( groupX, 1, 1 );
             };
 
-        auto dispatch_scan_groups = [in_cmd_list, this, in_num_inst](
+        auto dispatch_scan_group = [in_cmd_list, this, in_num_inst](
             auto in_group_sum_buffer,
             auto out_group_sum_buffer )
             {
-                in_cmd_list->SetPipelineState( m_pso_scan_groups_pass.Get() );
-                in_cmd_list->SetComputeRootSignature( m_rs_scan_groups_pass.Get() );
+                in_cmd_list->SetPipelineState( m_pso_scan_group_pass.Get() );
+                in_cmd_list->SetComputeRootSignature( m_rs_scan_group_pass.Get() );
 
                 // slot 0: constant <--> cbuffer OcclusionPassCB, b1
                 in_cmd_list->SetComputeRoot32BitConstants( 0, 12, &m_cb, 0 );
@@ -184,15 +184,15 @@ struct CullInstancePass
                 in_cmd_list->Dispatch( 1, 1, 1 );
             };
 
-        auto dispatch_copy_instances_pass = [in_cmd_list, this, in_num_inst](
+        auto dispatch_copy_instance_pass = [in_cmd_list, this, in_num_inst](
             auto in_inst_buffer,
             auto in_is_inst_alive_buffer,
             auto in_group_sum_buffer,
             auto in_inst_newpos_buffer,
             auto out_proccessed_inst_buffer )
             {
-                in_cmd_list->SetPipelineState( m_pso_copy_instances_pass.Get() );
-                in_cmd_list->SetComputeRootSignature( m_rs_copy_instances_pass.Get() );
+                in_cmd_list->SetPipelineState( m_pso_copy_instance_pass.Get() );
+                in_cmd_list->SetComputeRootSignature( m_rs_copy_instance_pass.Get() );
 
                 // slot 0: constant <--> cbuffer OcclusionPassCB, b1
                 in_cmd_list->SetComputeRoot32BitConstants( 0, 12, &m_cb, 0 );
@@ -242,20 +242,20 @@ struct CullInstancePass
 
         insert_barrier_uav_to_srv( out_is_inst_alive_buffer );
         insert_barrier_srv_to_uav( m_group_sum_buffer.Get() );
-        dispatch_scan_instances(
+        dispatch_scan_prefix(
             out_is_inst_alive_buffer->GetGPUVirtualAddress(),
             out_inst_newpos_buffer->GetGPUVirtualAddress(),
             m_group_sum_buffer->GetGPUVirtualAddress() );
 
         insert_barrier_uav_to_srv( m_group_sum_buffer.Get() );
         insert_barrier_srv_to_uav( m_scanned_group_sum_buffer.Get() );
-        dispatch_scan_groups(
+        dispatch_scan_group(
             m_group_sum_buffer->GetGPUVirtualAddress(),
             m_scanned_group_sum_buffer->GetGPUVirtualAddress() );
 
         insert_barrier_uav_to_srv( m_scanned_group_sum_buffer.Get() );
         insert_barrier_uav_to_srv( out_inst_newpos_buffer );
-        dispatch_copy_instances_pass(
+        dispatch_copy_instance_pass(
             in_inst_buffer->GetGPUVirtualAddress(),
             out_is_inst_alive_buffer->GetGPUVirtualAddress(),
             m_scanned_group_sum_buffer->GetGPUVirtualAddress(),
