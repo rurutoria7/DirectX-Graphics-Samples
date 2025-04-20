@@ -167,57 +167,23 @@ namespace OWO
         */
 #ifdef DEVELOP_INSTANCE
         auto mock_instance_data = [&]( int mesh_id ) -> std::vector<Instance>
-            {
-                if ( mesh_id == 0 )               
-                {
-                    std::vector<Instance> res;
-                    const float spacing = 20;
-                    const int numx = 25, numy = 25;
-
-                    for ( int i = 0; i < numx; i++ )
-                    {
-                        for ( int j = 0; j < numy; j++ )
-                        {
-                            Instance inst;
-                            auto world = XMMatrixTranslation( spacing * (i-numx/2), 0, spacing * -j );
-                            world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
-                            XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
-                            inst.materialIndex = XMINT4( mesh_id, 0, 0, 0 );
-                            res.push_back( inst );
-                        }
-                    }
-                    return res;
-                }
-
-                if ( mesh_id != 0 )
-                {
-                    std::vector<Instance> res;
-                    float spacing = 10;
-                    float spacingy = 30;
-
-                    for ( int i = 0; i < 50; i++ )
-                    {
-                        for ( int j = 0; j < 50; j++ )
-                        {
-                            Instance inst;
-                            auto world = XMMatrixTranslation( spacing * (i - 25), spacingy * j, -100);
-                            world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
-                            XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
-                            inst.materialIndex = XMINT4( 0, 0, 0, 0 );
-                            res.push_back( inst );
-                        }
-                    }
-                    return res;
-                }
-
-                // 1 instance no offset, default data
+            {             
                 std::vector<Instance> res;
-                XMMATRIX idm = XMMatrixIdentity();
-                Instance inst;
-                XMStoreFloat4x4( &inst.world, XMMatrixTranspose( idm ) );
-                inst.materialIndex = XMINT4( 0, 0, 0, 0 );
-                res.push_back( inst );
+                const float spacing = 20;
+                const int numx = 100, numy = 500;
 
+                for ( int i = 0; i < numx; i++ )
+                {
+                    for ( int j = 0; j < numy; j++ )
+                    {
+                        Instance inst;
+                        auto world = XMMatrixTranslation( spacing * (i-numx/2), (2*i*i - 3 - j*j + mesh_id) * 123456 % 23, spacing * -j );
+                        world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
+                        XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
+                        inst.materialIndex = XMINT4( mesh_id, 0, 0, 0 );
+                        res.push_back( inst );
+                    }
+                }
                 return res;
             };
 

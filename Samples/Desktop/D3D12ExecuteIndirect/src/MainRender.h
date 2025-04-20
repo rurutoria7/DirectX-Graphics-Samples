@@ -66,7 +66,7 @@ private:
     static constexpr const float FovDebugCam = XM_PI / 3;                        // Field of view for the debug camera.
 
     std::string MODEL_DIR_PATH = "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\";
-    std::string MODEL_FILE_NAME = "texturedMonkey.obj";
+    std::string MODEL_FILE_NAME = "two.obj";
     float FOV = XM_PI / 5;
 
 
@@ -173,7 +173,6 @@ private:
     ComPtr<ID3D12Resource> m_processedCommandBufferCounterReset;
     ComPtr<ID3D12Resource> m_default_proccessed_command_buffer;
     ComPtr<ID3D12Resource> m_default_no_culling_command_buffer;
-    D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 
 
     void LoadPipeline();

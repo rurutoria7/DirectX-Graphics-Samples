@@ -75,30 +75,17 @@ struct my_uint
 };
 
 struct IndirectCommand
-{
-    uint vbv0_BufferLocation_high; // high 32 bit of uint64_t
-    uint vbv0_BufferLocation_low;
-    uint vbv0_SizeInBytes;
-    uint vbv0_StrideInBytes;
+{    
+    uint constantBUfferAddr_high;       // 1
+    uint constantBUfferAddr_low;        // 2
     
-    uint vbv1_BufferLocation_high;
-    uint vbv1_BufferLocation_low;
-    uint vbv1_SizeInBytes;
-    uint vbv1_StrideInBytes;
-    
-    uint ibv_BufferLocation_high;
-    uint ibv_BufferLocation_low;
-    uint ibv_SizeInBytes;
-    uint ibv_Format;
-    
-    uint constantBUfferAddr_high;
-    uint constantBUfferAddr_low;
-    
-    uint draw_IndexCountPerInstance;
-    uint draw_InstanceCount;
-    uint draw_StartIndexLocation;
-    int draw_BaseVertexLocation;
-    uint draw_StartInstanceLocation;
+    uint draw_IndexCountPerInstance;    // 3
+    uint draw_InstanceCount;            // 4
+    uint draw_StartIndexLocation;       // 5
+    int draw_BaseVertexLocation;        // 6
+    uint draw_StartInstanceLocation;    // 7
+
+    uint _padding;                   // pad 28 bytes to 32 bytes
 };
 
 #define INSTANCE_COMPACTION_SCAN_BLOCK 128

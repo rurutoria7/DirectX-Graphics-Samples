@@ -5,11 +5,9 @@
 // command per mesh : VBV, VBV, IBV, RootCBV, DrawInstanced
 struct IndirectCommand
 {
-    D3D12_VERTEX_BUFFER_VIEW vbv0;
-    D3D12_VERTEX_BUFFER_VIEW vbv1;
-    D3D12_INDEX_BUFFER_VIEW ibv;
-    D3D12_GPU_VIRTUAL_ADDRESS constantBufferAddr;
-    D3D12_DRAW_INDEXED_ARGUMENTS drawIndexedArgs;
+    D3D12_GPU_VIRTUAL_ADDRESS constantBufferAddr;   // [0:7] 8 bytes
+    D3D12_DRAW_INDEXED_ARGUMENTS drawIndexedArgs;   // [8:27] 5 * 4 = 20 bytes
+    uint32_t _padding; // [28:31] 8 bytes
 };
 
 template<size_t MAX_NUM_TEXTURES>
@@ -140,16 +138,10 @@ struct GraphicsPass
 
         // Create Command signature
         {
-            // Each command consists of a CBV update and a DrawInstanced call.
-            D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[5] = {};
-            argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW;
-            argumentDescs[0].VertexBuffer.Slot = 0;
-            argumentDescs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW;
-            argumentDescs[1].VertexBuffer.Slot = 1;
-            argumentDescs[2].Type = D3D12_INDIRECT_ARGUMENT_TYPE_INDEX_BUFFER_VIEW;
-            argumentDescs[3].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
-            argumentDescs[3].ConstantBufferView.RootParameterIndex = GraphicsPass<0>::Cbv;   // 0
-            argumentDescs[4].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
+            D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[2] = {};
+            argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
+            argumentDescs[0].ConstantBufferView.RootParameterIndex = GraphicsPass<0>::Cbv; // 0
+            argumentDescs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
 
             D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
             commandSignatureDesc.pArgumentDescs = argumentDescs;
@@ -162,20 +154,23 @@ struct GraphicsPass
 
     void SetBeforeDraw(
         ID3D12GraphicsCommandList* in_commandList,
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle,
-        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle,
-        UINT width, UINT height, int leftOrRight,
-        int doClear = 1
+        D3D12_CPU_DESCRIPTOR_HANDLE in_rtvHandle,
+        D3D12_CPU_DESCRIPTOR_HANDLE in_dsvHandle,
+        D3D12_VERTEX_BUFFER_VIEW in_vbv,
+        D3D12_VERTEX_BUFFER_VIEW in_instanceVbv,
+        D3D12_INDEX_BUFFER_VIEW in_ibv,
+        UINT in_width, UINT in_height, int in_leftOrRight,
+        int in_doClear = 1
     )
     {
         {
-            in_commandList->OMSetRenderTargets( 1, &rtvHandle, FALSE, &dsvHandle );
+            in_commandList->OMSetRenderTargets( 1, &in_rtvHandle, FALSE, &in_dsvHandle );
             const float clearColor[] = { 0.1f, 0.1f, 0.1f, 1.0f };
 
-            if ( doClear )
+            if ( in_doClear )
             {
-                in_commandList->ClearRenderTargetView( rtvHandle, clearColor, 0, nullptr );
-                in_commandList->ClearDepthStencilView( dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr );
+                in_commandList->ClearRenderTargetView( in_rtvHandle, clearColor, 0, nullptr );
+                in_commandList->ClearDepthStencilView( in_dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr );
             }
 
             // Set Pipeline state.
@@ -187,26 +182,29 @@ struct GraphicsPass
             // Set IA
             {
                 in_commandList->IASetPrimitiveTopology( D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+                in_commandList->IASetIndexBuffer( &in_ibv );
+                in_commandList->IASetVertexBuffers( 0, 1, &in_vbv );
+                in_commandList->IASetVertexBuffers( 1, 1, &in_instanceVbv );
             }
 
             // Set RS
             {
                 CD3DX12_VIEWPORT viewport;
                 CD3DX12_RECT scissorRect;
-                if ( leftOrRight == 0 )
+                if ( in_leftOrRight == 0 )
                 {
-                    viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height) );
-                    scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) );
+                    viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>(in_width), static_cast<float>(in_height) );
+                    scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>(in_width), static_cast<LONG>(in_height) );
                 }
-                else if ( leftOrRight < 0 )
+                else if ( in_leftOrRight < 0 )
                 {     // lefts
-                    viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>(width / 2), static_cast<float>(height) );
-                    scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>(width / 2), static_cast<LONG>(height) );
+                    viewport = CD3DX12_VIEWPORT( 0.0f, 0.0f, static_cast<float>(in_width / 2), static_cast<float>(in_height) );
+                    scissorRect = CD3DX12_RECT( 0, 0, static_cast<LONG>(in_width / 2), static_cast<LONG>(in_height) );
                 }
                 else
                 {     // right
-                    viewport = CD3DX12_VIEWPORT( static_cast<float>(width / 2), 0.0f, static_cast<float>(width / 2), static_cast<float>(height) );
-                    scissorRect = CD3DX12_RECT( static_cast<LONG>(width / 2), 0, static_cast<LONG>(width), static_cast<LONG>(height) );
+                    viewport = CD3DX12_VIEWPORT( static_cast<float>(in_width / 2), 0.0f, static_cast<float>(in_width / 2), static_cast<float>(in_height) );
+                    scissorRect = CD3DX12_RECT( static_cast<LONG>(in_width / 2), 0, static_cast<LONG>(in_width), static_cast<LONG>(in_height) );
                 }
 
                 in_commandList->RSSetViewports( 1, &viewport );

@@ -8,6 +8,7 @@ cbuffer Constants : register(b0)
 {
     int4 numInstance;   // use only x
     float4x4 vp;
+    uint numMeshes;     // 新增：網格總數
 };
 
 bool isInFrustum(float4 clipPos)
@@ -23,26 +24,31 @@ bool isInFrustum(float4 clipPos)
 
 [numthreads(NOOF_THREADS, 1, 1)]
 [RootSignature(
-    "RootConstants(num32BitConstants=20, b0), "
+    "RootConstants(num32BitConstants=21, b0), " // 更新常數數量
     "SRV(t0), "
     "UAV(u0), "
-    "UAV(u1)"
-)]
+    "UAV(u1)")]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 groupId : SV_GroupID, uint3 groupThreadId : SV_GroupThreadID)
 {
+    // 讓 thread 0 初始化所有 mesh 的 instanceCount
+    if (DTid.x == 0)
+    {
+        for (uint meshId = 0; meshId < numMeshes; meshId++)
+        {
+            outCommands[meshId].draw_InstanceCount = 0;
+        }
+    }
+    
+    // 全局內存屏障，確保所有線程都能看到初始化的值
+    DeviceMemoryBarrierWithGroupSync();
+    
     uint idx = DTid.x;
     if (idx >= (uint) numInstance.x)
         return;
     
-    if (idx == 0)
-    {
-        outCommands[0].draw_InstanceCount = 0;
-    }
-    
-    uint groupIdx = groupId.x;
-    
     Instance inst = inInstances[idx];
-
+    uint meshId = inst.materialIndex.x; // 使用 materialIndex.x 作為 mesh_id
+    
     float3 pos = inst.world[3].xyz;
     float4 clipPos = mul(float4(pos, 1.0f), vp);
 
@@ -50,8 +56,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 groupId : SV_GroupID, uint3 gr
     {
         outInstances[idx].x = 1;
         
-        // [TOODOO] only works for single drawcall
-        InterlockedAdd(outCommands[0].draw_InstanceCount, 1);
+        // 更新對應 mesh_id 的 draw_InstanceCount
+        InterlockedAdd(outCommands[meshId].draw_InstanceCount, 1);
     }
     else
     {

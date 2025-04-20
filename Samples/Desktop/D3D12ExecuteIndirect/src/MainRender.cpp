@@ -35,8 +35,7 @@ MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
     m_enableCulling( false ),
     m_fenceValues {},
     m_fenceEvent( nullptr ),
-    m_pCbvDataBegin( nullptr ),
-    m_vertexBufferView()
+    m_pCbvDataBegin( nullptr )
 {
     m_constantBufferData.resize( MaxNumMeshes * FrameCount );
 
@@ -284,111 +283,8 @@ void MainRender::LoadAssets()
         CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
         ThrowIfFailed( m_upload_constantBuffer->Map( 0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin) ) );
         memcpy( m_pCbvDataBegin, &m_constantBufferData[0], m_fbxLoader.NumMeshes() * sizeof( SceneConstantBuffer ) );
-
-#if 0
-        // Create shader resource views (SRV) of the constant buffers for the
-        // compute shader to read from.
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
-        srvDesc.Buffer.StructureByteStride = sizeof( SceneConstantBuffer );
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-        CD3DX12_CPU_DESCRIPTOR_HANDLE cbvSrvHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvOffset, m_cbvSrvUavDescriptorSize );
-        for ( UINT frame = 0; frame < FrameCount; frame++ )
-        {
-            srvDesc.Buffer.FirstElement = frame * m_fbxLoader.NumMeshes();
-            m_device->CreateShaderResourceView( m_upload_constantBuffer.Get(), &srvDesc, cbvSrvHandle );
-            cbvSrvHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
-        }
-#endif
     }
 
-#if 0
-    {
-        const UINT commandBufferSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand ) * FrameCount;
-
-        D3D12_GPU_VIRTUAL_ADDRESS gpuAddress = m_upload_constantBuffer->GetGPUVirtualAddress();
-        UINT commandIndex = 0;
-
-        // Create SRVs for the command buffers. 
-        {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srvDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
-            srvDesc.Buffer.StructureByteStride = sizeof( IndirectCommand );
-            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-            CD3DX12_CPU_DESCRIPTOR_HANDLE commandsHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CommandsOffset, m_cbvSrvUavDescriptorSize );
-            for ( UINT frame = 0; frame < FrameCount; frame++ )
-            {
-                srvDesc.Buffer.FirstElement = frame * m_fbxLoader.NumMeshes();
-                m_device->CreateShaderResourceView( m_upload_commandBuffer.Get(), &srvDesc, commandsHandle );
-                commandsHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
-            }
-        }
-
-        // Create the unordered access views (UAVs) that store the results of the compute work.
-        {
-            CD3DX12_CPU_DESCRIPTOR_HANDLE processedCommandsHandle( m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), ProcessedCommandsOffset, m_cbvSrvUavDescriptorSize );
-            for ( UINT frame = 0; frame < FrameCount; frame++ )
-            {
-                // Allocate a buffer large enough to hold all of the indirect commands
-                // for a single frame as well as a UAV counter.
-                auto commandBufferDesc = CD3DX12_RESOURCE_DESC::Buffer( CommandBufferCounterOffset + sizeof( UINT ), D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
-
-                ThrowIfFailed( m_device->CreateCommittedResource(
-                    &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-                    D3D12_HEAP_FLAG_NONE,
-                    &commandBufferDesc,
-                    D3D12_RESOURCE_STATE_COMMON,
-                    nullptr,
-                    IID_PPV_ARGS( &m_processedCommandBuffers[frame] ) ) );
-
-                NAME_D3D12_OBJECT_INDEXED( m_processedCommandBuffers, frame );
-
-                D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-                uavDesc.Format = DXGI_FORMAT_UNKNOWN;
-                uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-                uavDesc.Buffer.FirstElement = 0;
-                uavDesc.Buffer.NumElements = m_fbxLoader.NumMeshes();
-                uavDesc.Buffer.StructureByteStride = sizeof( IndirectCommand );
-                uavDesc.Buffer.CounterOffsetInBytes = CommandBufferCounterOffset;
-                uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-
-                m_device->CreateUnorderedAccessView(
-                    m_processedCommandBuffers[frame].Get(),
-                    m_processedCommandBuffers[frame].Get(),
-                    &uavDesc,
-                    processedCommandsHandle );
-
-                processedCommandsHandle.Offset( CbvSrvUavDescriptorCountPerFrame, m_cbvSrvUavDescriptorSize );
-            }
-
-            // Allocate a buffer that can be used to reset the UAV counters and initialize
-            // it to 0.
-            {
-                ThrowIfFailed( m_device->CreateCommittedResource(
-                    &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
-                    D3D12_HEAP_FLAG_NONE,
-                    &CD3DX12_RESOURCE_DESC::Buffer( sizeof( UINT ) ),
-                    D3D12_RESOURCE_STATE_GENERIC_READ,
-                    nullptr,
-                    IID_PPV_ARGS( &m_processedCommandBufferCounterReset ) ) );
-
-                UINT8* pMappedCounterReset = nullptr;
-                CD3DX12_RANGE readRange( 0, 0 );        // We do not intend to read from this resource on the CPU.
-                ThrowIfFailed( m_processedCommandBufferCounterReset->Map( 0, &readRange, reinterpret_cast<void**>(&pMappedCounterReset) ) );
-                ZeroMemory( pMappedCounterReset, sizeof( UINT ) );
-                m_processedCommandBufferCounterReset->Unmap( 0, nullptr );
-            }
-        }
-    }
-#endif
     // Create the fence
     auto createFence = [&]()
         {
@@ -687,42 +583,13 @@ void MainRender::LoadAssets()
         std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
         {
-            D3D12_VERTEX_BUFFER_VIEW vbv;
-            vbv.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
-            vbv.BufferLocation += m_fbxLoader.GetVertexOffset( i ) * sizeof( OWO::Vertex );
-            vbv.StrideInBytes = sizeof( OWO::Vertex );
-            vbv.SizeInBytes = sizeof( OWO::Vertex ) * m_fbxLoader.GetMeshes()[i].vertices.size();
-
-            D3D12_VERTEX_BUFFER_VIEW instbv;
-            instbv.BufferLocation = m_default_proccessed_instanceBuffer->GetGPUVirtualAddress();
-            instbv.BufferLocation += m_fbxLoader.GetInstanceOffset( i ) * sizeof( OWO::Instance );
-            instbv.StrideInBytes = sizeof( OWO::Instance );
-            instbv.SizeInBytes = sizeof( OWO::Instance ) * m_fbxLoader.GetMeshes()[i].instances.size();
-
-            D3D12_INDEX_BUFFER_VIEW ibv;
-            ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
-            ibv.BufferLocation += m_fbxLoader.GetIndexOffset( i ) * sizeof( UINT );
-            ibv.Format = DXGI_FORMAT_R32_UINT;
-            ibv.SizeInBytes = sizeof( UINT ) * m_fbxLoader.GetMeshes()[i].indices.size();
-
-            D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
-            constantBuffer += (i) * sizeof( SceneConstantBuffer );
-
             IndirectCommand cmd;
-            cmd.vbv0 = vbv;
-            cmd.vbv1 = instbv;
-            cmd.ibv = ibv;
-            cmd.constantBufferAddr = constantBuffer;
-            cmd.drawIndexedArgs = {};
+            cmd.constantBufferAddr = m_upload_constantBuffer->GetGPUVirtualAddress() + i * sizeof( SceneConstantBuffer );
             cmd.drawIndexedArgs.IndexCountPerInstance = m_fbxLoader.GetMeshes()[i].indices.size();
             cmd.drawIndexedArgs.InstanceCount = m_fbxLoader.GetMeshes()[i].instances.size();
-            cmd.drawIndexedArgs.StartIndexLocation = 0;
-            cmd.drawIndexedArgs.BaseVertexLocation = 0;
-            cmd.drawIndexedArgs.StartInstanceLocation = 0;
-
-            /* TOODOO: optimize command buffer (medium priority)
-            - change per - command binding for IA--> different start location in draw arguments
-            */
+            cmd.drawIndexedArgs.StartIndexLocation = m_fbxLoader.GetIndexOffset( i );
+            cmd.drawIndexedArgs.BaseVertexLocation = m_fbxLoader.GetVertexOffset( i );
+            cmd.drawIndexedArgs.StartInstanceLocation = m_fbxLoader.GetInstanceOffset( i );
 
             commandsBufferData[i] = cmd;
         }
@@ -775,34 +642,13 @@ void MainRender::LoadAssets()
         std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
         {
-            D3D12_VERTEX_BUFFER_VIEW vbv;
-            vbv.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
-            vbv.BufferLocation += m_fbxLoader.GetVertexOffset( i ) * sizeof( OWO::Vertex );
-            vbv.StrideInBytes = sizeof( OWO::Vertex );
-            vbv.SizeInBytes = sizeof( OWO::Vertex ) * m_fbxLoader.GetMeshes()[i].vertices.size();
-            D3D12_VERTEX_BUFFER_VIEW instbv;
-            instbv.BufferLocation = m_default_instance_buffer->GetGPUVirtualAddress();
-            instbv.BufferLocation += m_fbxLoader.GetInstanceOffset( i ) * sizeof( OWO::Instance );
-            instbv.StrideInBytes = sizeof( OWO::Instance );
-            instbv.SizeInBytes = sizeof( OWO::Instance ) * m_fbxLoader.GetMeshes()[i].instances.size();
-            D3D12_INDEX_BUFFER_VIEW ibv;
-            ibv.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
-            ibv.BufferLocation += m_fbxLoader.GetIndexOffset( i ) * sizeof( UINT );
-            ibv.Format = DXGI_FORMAT_R32_UINT;
-            ibv.SizeInBytes = sizeof( UINT ) * m_fbxLoader.GetMeshes()[i].indices.size();
-            D3D12_GPU_VIRTUAL_ADDRESS constantBuffer = m_upload_constantBuffer->GetGPUVirtualAddress();
-            constantBuffer += (i) * sizeof( SceneConstantBuffer );
             IndirectCommand cmd;
-            cmd.vbv0 = vbv;
-            cmd.vbv1 = instbv;
-            cmd.ibv = ibv;
-            cmd.constantBufferAddr = constantBuffer;
-            cmd.drawIndexedArgs = {};
+            cmd.constantBufferAddr = m_upload_constantBuffer->GetGPUVirtualAddress() + i * sizeof( SceneConstantBuffer );
             cmd.drawIndexedArgs.IndexCountPerInstance = m_fbxLoader.GetMeshes()[i].indices.size();
             cmd.drawIndexedArgs.InstanceCount = m_fbxLoader.GetMeshes()[i].instances.size();
-            cmd.drawIndexedArgs.StartIndexLocation = 0;
-            cmd.drawIndexedArgs.BaseVertexLocation = 0;
-            cmd.drawIndexedArgs.StartInstanceLocation = 0;
+            cmd.drawIndexedArgs.StartIndexLocation = m_fbxLoader.GetIndexOffset( i );
+            cmd.drawIndexedArgs.BaseVertexLocation = m_fbxLoader.GetVertexOffset( i );
+            cmd.drawIndexedArgs.StartInstanceLocation = m_fbxLoader.GetInstanceOffset( i );
             commandsBufferData[i] = cmd;
         }
 
@@ -946,6 +792,7 @@ void MainRender::OnRender()
         auto out_proccessed_inst_buffer = m_default_proccessed_instanceBuffer.Get();
         auto out_command_buffer = m_default_command_buffer.Get();
         UINT in_num_inst = m_fbxLoader.GetInstances().size();
+        UINT in_num_meshes = m_fbxLoader.NumMeshes();
         DirectX::XMMATRIX in_vp_no_transpose = mvp;
 
         m_cullInstancePass.record_dispatch(
@@ -956,6 +803,7 @@ void MainRender::OnRender()
             out_proccessed_inst_buffer,
             out_command_buffer,
             in_num_inst,
+            in_num_meshes,
             in_vp_no_transpose
         );
     }
@@ -980,32 +828,46 @@ void MainRender::OnRender()
 
     ResetGFXCommandList();
 
-    // Populate GFX command list (player).
+    auto recordGfxPassCommand = [this](bool in_enable_culling, bool in_do_clear, int in_left_or_right)
     {
-        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
-        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-
         ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
         m_commandList->SetDescriptorHeaps( _countof( ppHeaps ), ppHeaps );
 
-        m_graphicsPass.SetBeforeDraw( m_commandList.Get(), rtvHandle, dsvHandle, m_width, m_height, -1, 1 );
+        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
+        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-        // render left (player)
-        if ( m_enableCulling )
-        {
-            m_graphicsPass.Draw(
-                m_commandList.Get(),
-                m_fbxLoader.GetMeshes().size(),
-                m_default_proccessed_command_buffer.Get() );
-        }
-        else
-        {
-            m_graphicsPass.Draw(
-                m_commandList.Get(),
-                m_fbxLoader.GetMeshes().size(),
-                m_default_no_culling_command_buffer.Get() );
-        }
-    }
+        D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+        vertexBufferView.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
+        vertexBufferView.SizeInBytes = static_cast<UINT>(m_fbxLoader.GetVertices().size() * sizeof( OWO::Vertex ));
+        vertexBufferView.StrideInBytes = sizeof( OWO::Vertex );
+
+        D3D12_INDEX_BUFFER_VIEW indexBufferView;
+        indexBufferView.BufferLocation = m_default_indexBuffer->GetGPUVirtualAddress();
+        indexBufferView.SizeInBytes = static_cast<UINT>(m_fbxLoader.GetIndices().size() * sizeof( UINT ));
+        indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+
+        D3D12_VERTEX_BUFFER_VIEW instanceBufferView;
+        instanceBufferView.BufferLocation = in_enable_culling ?
+                m_default_proccessed_instanceBuffer->GetGPUVirtualAddress() :
+                m_default_instance_buffer->GetGPUVirtualAddress();
+        instanceBufferView.SizeInBytes = static_cast<UINT>(m_fbxLoader.GetInstances().size() * sizeof( OWO::Instance ));
+        instanceBufferView.StrideInBytes = sizeof( OWO::Instance );
+
+        m_graphicsPass.SetBeforeDraw(
+            m_commandList.Get(),
+            rtvHandle, dsvHandle,
+            vertexBufferView, instanceBufferView, indexBufferView, 
+            m_width, m_height,
+            in_left_or_right, in_do_clear );
+
+        m_graphicsPass.Draw(
+            m_commandList.Get(),
+            m_fbxLoader.GetMeshes().size(),
+            in_enable_culling ? m_default_proccessed_command_buffer.Get() : m_default_no_culling_command_buffer.Get() );
+    };
+
+    // Populate GFX command list (player).
+    recordGfxPassCommand( m_enableCulling, true, -1 );
 
     ExecuteGFXCommandList();
 
@@ -1014,34 +876,7 @@ void MainRender::OnRender()
     updateCameraConstant( 1 );
 
     // Populate GFX command list (god).
-    {
-        auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
-        auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
-
-        ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
-        m_commandList->SetDescriptorHeaps( _countof( ppHeaps ), ppHeaps );
-
-        m_graphicsPass.SetBeforeDraw(
-            m_commandList.Get(),
-            rtvHandle, dsvHandle,
-            m_width, m_height, 1,
-            0 );
-
-        if ( m_enableCulling )
-        {
-            m_graphicsPass.Draw(
-                m_commandList.Get(),
-                m_fbxLoader.GetMeshes().size(),
-                m_default_proccessed_command_buffer.Get() );
-        }
-        else
-        {
-            m_graphicsPass.Draw(
-                m_commandList.Get(),
-                m_fbxLoader.GetMeshes().size(),
-                m_default_no_culling_command_buffer.Get() );
-        }
-    }
+    recordGfxPassCommand( m_enableCulling, false, 1 );
 
     m_frustumDraw.Draw( m_commandList.Get() );
 
@@ -1061,6 +896,7 @@ void MainRender::OnRender()
     ThrowIfFailed( m_swapChain->Present( 1, 0 ) );
 
     MoveToNextFrame();
+    
 }
 
 // Release sample's D3D objects.

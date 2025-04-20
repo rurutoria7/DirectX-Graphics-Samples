@@ -39,6 +39,8 @@ struct CullInstancePass
     ComPtr<ID3D12Resource> m_scanned_group_sum_buffer;
     ComPtr<ID3D12Resource> m_group_sum_buffer;
 
+    ComPtr<ID3D12RootSignature> m_rs_scan_command_pass;
+    ComPtr<ID3D12PipelineState> m_pso_scan_command_pass;
 
     static constexpr uint32_t ceil_div( uint32_t x, uint32_t y ) { return (x + y - 1) / y; }
 
@@ -90,6 +92,7 @@ struct CullInstancePass
         create_pso_rs( L"ScanInstancesCS.cso", m_rs_scan_prefix_pass, m_pso_scan_prefix_pass );
         create_pso_rs( L"ScanGroupsCS.cso", m_rs_scan_group_pass, m_pso_scan_group_pass );
         create_pso_rs( L"CopyInstancesCS.cso", m_rs_copy_instance_pass, m_pso_copy_instance_pass );
+        create_pso_rs( L"ScanCommandsCS.cso", m_rs_scan_command_pass, m_pso_scan_command_pass );
 
         create_group_sum_buffer( m_group_sum_buffer );
         create_group_sum_buffer( m_scanned_group_sum_buffer );
@@ -103,18 +106,20 @@ struct CullInstancePass
         ID3D12Resource* out_proccessed_inst_buffer,
         ID3D12Resource* out_command_buffer,
         UINT in_num_inst,
+        UINT in_num_meshes,
         DirectX::XMMATRIX in_vp_no_transpose
     )
     {
-        auto fill_cb = [in_num_inst]( CB& cb )
+        auto fill_cb = [in_num_inst, in_num_meshes](CB& cb)
             {
                 cb = {};
                 UINT noofGroups = get_padded_size( in_num_inst ) / (2 * NUM_THREADS_OF_SCAN_GROUP);
                 noofGroups = (UINT) pow( 2, floor( log( noofGroups ) / log( 2 ) ) + 1 );
                 cb.NoofGroups = noofGroups;
+                cb.NoofDrawcalls = in_num_meshes;
             };
 
-        auto dispatch_kill_instance_pass = [in_cmd_list, this, in_num_inst, in_vp_no_transpose](
+        auto dispatch_kill_instance_pass = [in_cmd_list, this, in_num_inst, in_num_meshes, in_vp_no_transpose](
             auto in_inst_buffer,
             auto out_is_inst_alive_buffer,
             auto out_command_buffer )
@@ -132,6 +137,9 @@ struct CullInstancePass
                 DirectX::XMFLOAT4X4 vp_data;
                 DirectX::XMStoreFloat4x4( &vp_data, XMMatrixTranspose( in_vp_no_transpose ) );
                 in_cmd_list->SetComputeRoot32BitConstants( 0, 16, &vp_data, 4 );
+
+                // Set numMeshes
+                in_cmd_list->SetComputeRoot32BitConstant( 0, in_num_meshes, 20 );
 
                 in_cmd_list->SetComputeRootShaderResourceView( 1, in_inst_buffer );
                 in_cmd_list->SetComputeRootUnorderedAccessView( 2, out_is_inst_alive_buffer );
@@ -216,6 +224,21 @@ struct CullInstancePass
                 in_cmd_list->Dispatch( groupX, 1, 1 );
             };
 
+        auto dispatch_scan_command_pass = [in_cmd_list, this, in_num_meshes](
+            auto inout_command_buffer )
+            {
+                in_cmd_list->SetPipelineState(m_pso_scan_command_pass.Get());
+                in_cmd_list->SetComputeRootSignature(m_rs_scan_command_pass.Get());
+
+                // slot 0: constant <--> cbuffer OcclusionPassCB, b1
+                in_cmd_list->SetComputeRoot32BitConstants( 0, 12, &m_cb, 0 );
+
+                // slot 1: root UAV <--> RWStructuredBuffer<IndirectCommand> inoutCommands, u0
+                in_cmd_list->SetComputeRootUnorderedAccessView( 1, inout_command_buffer );
+
+                in_cmd_list->Dispatch(1, 1, 1);
+            };
+
         auto insert_barrier_srv_to_uav = [in_cmd_list]( auto in_res )
             {
                 CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -264,5 +287,8 @@ struct CullInstancePass
         );
 
         insert_barrier_uav_to_srv( out_proccessed_inst_buffer );
+        
+        dispatch_scan_command_pass( out_command_buffer->GetGPUVirtualAddress() );
+        insert_barrier_uav_to_srv( out_command_buffer );
     }
 };
