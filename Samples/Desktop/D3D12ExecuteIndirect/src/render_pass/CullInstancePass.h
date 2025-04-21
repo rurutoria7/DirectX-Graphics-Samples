@@ -3,6 +3,7 @@
 #include "d3dx12.h"
 #include "../DXSampleHelper.h"
 #include <iostream>
+#include "ResourceStateTracker.h"
 
 struct CullInstancePass
 {
@@ -54,7 +55,8 @@ struct CullInstancePass
     void init(
         ID3D12Device* in_device,
         std::wstring in_asset_path,
-        unsigned in_num_inst )
+        unsigned in_num_inst,
+        ResourceStateTracker& in_state_tracker )
     {
         auto create_pso_rs = [in_device, in_asset_path](
             std::wstring in_shaderPath, ComPtr<ID3D12RootSignature>& out_rs, ComPtr<ID3D12PipelineState>& out_pso )
@@ -74,7 +76,7 @@ struct CullInstancePass
                 computePsoDesc.CS = { cshader.data, cshader.size };
                 ThrowIfFailed( in_device->CreateComputePipelineState( &computePsoDesc, IID_PPV_ARGS( &out_pso ) ) );
             };
-        auto create_group_sum_buffer = [in_device, in_num_inst]( auto& res )
+        auto create_group_sum_buffer = [in_device, in_num_inst, &in_state_tracker]( auto& res )
             {
                 auto buffer_size = get_padded_size( in_num_inst ) * sizeof( unsigned );
                 auto flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
@@ -86,6 +88,8 @@ struct CullInstancePass
                     D3D12_RESOURCE_STATE_COMMON,
                     nullptr,
                     IID_PPV_ARGS( &res ) ) );
+                NAME_D3D12_OBJECT( res );
+                in_state_tracker.TrackResourceState( res.Get(), D3D12_RESOURCE_STATE_COMMON );
             };
 
         create_pso_rs( L"KillInstancesCS.cso", m_rs_kill_instance_pass, m_pso_kill_instance_pass );
@@ -107,8 +111,8 @@ struct CullInstancePass
         ID3D12Resource* out_command_buffer,
         UINT in_num_inst,
         UINT in_num_meshes,
-        DirectX::XMMATRIX in_vp_no_transpose
-    )
+        DirectX::XMMATRIX in_vp_no_transpose,
+        ResourceStateTracker& in_state_tracker )
     {
         auto fill_cb = [in_num_inst, in_num_meshes](CB& cb)
             {
@@ -255,29 +259,37 @@ struct CullInstancePass
 
         fill_cb( m_cb );
 
-        insert_barrier_srv_to_uav( out_is_inst_alive_buffer );
-        insert_barrier_srv_to_uav( out_command_buffer );
+        in_state_tracker.Transition( in_inst_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
+        in_state_tracker.FlushBarriers( in_cmd_list );
+        in_state_tracker.Transition( out_is_inst_alive_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.FlushBarriers( in_cmd_list );
+        in_state_tracker.Transition( out_command_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.FlushBarriers( in_cmd_list );
         dispatch_kill_instance_pass(
             in_inst_buffer->GetGPUVirtualAddress(),
             out_is_inst_alive_buffer->GetGPUVirtualAddress(),
             out_command_buffer->GetGPUVirtualAddress() );
-        insert_barrier_uav_to_srv( out_command_buffer );
 
-        insert_barrier_uav_to_srv( out_is_inst_alive_buffer );
-        insert_barrier_srv_to_uav( m_group_sum_buffer.Get() );
+        in_state_tracker.Transition( out_is_inst_alive_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
+        in_state_tracker.Transition( m_group_sum_buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.Transition( out_inst_newpos_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.FlushBarriers( in_cmd_list );
         dispatch_scan_prefix(
             out_is_inst_alive_buffer->GetGPUVirtualAddress(),
             out_inst_newpos_buffer->GetGPUVirtualAddress(),
             m_group_sum_buffer->GetGPUVirtualAddress() );
 
-        insert_barrier_uav_to_srv( m_group_sum_buffer.Get() );
-        insert_barrier_srv_to_uav( m_scanned_group_sum_buffer.Get() );
+        in_state_tracker.Transition( m_scanned_group_sum_buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.Transition( m_group_sum_buffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
+        in_state_tracker.FlushBarriers( in_cmd_list );
         dispatch_scan_group(
             m_group_sum_buffer->GetGPUVirtualAddress(),
             m_scanned_group_sum_buffer->GetGPUVirtualAddress() );
 
-        insert_barrier_uav_to_srv( m_scanned_group_sum_buffer.Get() );
-        insert_barrier_uav_to_srv( out_inst_newpos_buffer );
+        in_state_tracker.Transition( m_scanned_group_sum_buffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
+        in_state_tracker.Transition( out_inst_newpos_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
+        in_state_tracker.Transition( out_proccessed_inst_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.FlushBarriers( in_cmd_list );
         dispatch_copy_instance_pass(
             in_inst_buffer->GetGPUVirtualAddress(),
             out_is_inst_alive_buffer->GetGPUVirtualAddress(),
@@ -286,9 +298,7 @@ struct CullInstancePass
             out_proccessed_inst_buffer->GetGPUVirtualAddress()
         );
 
-        insert_barrier_uav_to_srv( out_proccessed_inst_buffer );
-        
+        in_state_tracker.Transition( out_proccessed_inst_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
         dispatch_scan_command_pass( out_command_buffer->GetGPUVirtualAddress() );
-        insert_barrier_uav_to_srv( out_command_buffer );
     }
 };

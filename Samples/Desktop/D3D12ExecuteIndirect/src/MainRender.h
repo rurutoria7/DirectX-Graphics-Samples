@@ -21,6 +21,7 @@
 #include "FrustumVisualizer.h"
 #include "d3d12.h"
 #include "render_pass/CullInstancePass.h"
+#include "ResourceStateTracker.h"
 #include <thread>
 
 using namespace DirectX;
@@ -117,7 +118,7 @@ private:
     CullInstancePass m_cullInstancePass;
     OWO::FBXLoader m_fbxLoader;
     FrustumVisualizer m_frustumDraw;
-
+    ResourceStateTracker m_stateTracker;
 
     // Each triangle gets its own constant buffer per frame.
     std::vector<SceneConstantBuffer> m_constantBufferData;

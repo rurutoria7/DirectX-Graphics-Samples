@@ -61,7 +61,7 @@ void MainRender::OnInit()
 
     m_graphicsPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
     m_processCommandPass.Init( m_device.Get(), GetAssetFullPath( L"" ) );
-    m_cullInstancePass.init( m_device.Get(), GetAssetFullPath( L"" ), num_inst );
+    m_cullInstancePass.init( m_device.Get(), GetAssetFullPath( L"" ), num_inst, m_stateTracker);
     m_mainCam.Init( { 0, 15, 40 }, false );
     m_mainCam.SetMoveSpeed( 25.0f );
     m_debugCam.Init( { 0, 50, 100 }, true );
@@ -196,6 +196,7 @@ void MainRender::LoadPipeline()
             rtvHandle.Offset( 1, m_rtvDescriptorSize );
 
             NAME_D3D12_OBJECT_INDEXED( m_renderTargets, n );
+            m_stateTracker.TrackResourceState( m_renderTargets[n].Get(), D3D12_RESOURCE_STATE_COPY_DEST );
 
             ThrowIfFailed( m_device->CreateCommandAllocator( D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS( &m_commandAllocators[n] ) ) );
             ThrowIfFailed( m_device->CreateCommandAllocator( D3D12_COMMAND_LIST_TYPE_COMPUTE, IID_PPV_ARGS( &m_computeCommandAllocators[n] ) ) );
@@ -266,6 +267,8 @@ void MainRender::LoadAssets()
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS( &m_upload_constantBuffer ) ) );
+        
+        m_stateTracker.TrackResourceState( m_upload_constantBuffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );  
 
         NAME_D3D12_OBJECT( m_upload_constantBuffer );
 
@@ -328,6 +331,7 @@ void MainRender::LoadAssets()
             IID_PPV_ARGS( &m_default_vertexBuffer ) ) );
 
         NAME_D3D12_OBJECT( m_default_vertexBuffer );
+        m_stateTracker.TrackResourceState( m_default_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COMMON );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -336,6 +340,8 @@ void MainRender::LoadAssets()
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS( &upload_vertexBuffer ) ) );
+        NAME_D3D12_OBJECT( upload_vertexBuffer );
+        m_stateTracker.TrackResourceState( upload_vertexBuffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
         D3D12_SUBRESOURCE_DATA vertexData = {};
         auto vertices = m_fbxLoader.GetVertices();
@@ -343,8 +349,11 @@ void MainRender::LoadAssets()
         vertexData.RowPitch = m_fbxLoader.GetVertices().size() * sizeof( OWO::Vertex );
         vertexData.SlicePitch = vertexData.RowPitch;
 
+        m_stateTracker.Transition(m_default_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
         UpdateSubresources<1>( m_commandList.Get(), m_default_vertexBuffer.Get(), upload_vertexBuffer.Get(), 0, 0, 1, &vertexData );
-        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER ) );
+        m_stateTracker.Transition(m_default_vertexBuffer.Get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
     }
 
     // Create Index buffer.
@@ -365,6 +374,7 @@ void MainRender::LoadAssets()
             IID_PPV_ARGS( &m_default_indexBuffer ) ) );
 
         NAME_D3D12_OBJECT( m_default_indexBuffer );
+        m_stateTracker.TrackResourceState( m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COMMON );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -373,6 +383,8 @@ void MainRender::LoadAssets()
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS( &upload_indexBuffer ) ) );
+        NAME_D3D12_OBJECT( upload_indexBuffer );
+        m_stateTracker.TrackResourceState( upload_indexBuffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
         D3D12_SUBRESOURCE_DATA indicesData = {};
         auto indices = m_fbxLoader.GetIndices();
@@ -380,8 +392,11 @@ void MainRender::LoadAssets()
         indicesData.RowPitch = indexBufferSize;
         indicesData.SlicePitch = indicesData.RowPitch;
 
+        m_stateTracker.Transition(m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
         UpdateSubresources<1>( m_commandList.Get(), m_default_indexBuffer.Get(), upload_indexBuffer.Get(), 0, 0, 1, &indicesData );
-        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_INDEX_BUFFER ) );
+        m_stateTracker.Transition(m_default_indexBuffer.Get(), D3D12_RESOURCE_STATE_INDEX_BUFFER);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
     }
 
     // Create Instance buffer.
@@ -400,6 +415,7 @@ void MainRender::LoadAssets()
                 IID_PPV_ARGS( &m_upload_instanceBuffer ) ) );
 
             NAME_D3D12_OBJECT( m_upload_instanceBuffer );
+            m_stateTracker.TrackResourceState( m_upload_instanceBuffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
             UINT8* pInstanceDataBegin;
             CD3DX12_RANGE readRange( 0, 0 );
@@ -419,8 +435,13 @@ void MainRender::LoadAssets()
                 nullptr,
                 IID_PPV_ARGS( &m_default_instance_buffer ) ) );
             NAME_D3D12_OBJECT( m_default_instance_buffer );
+            m_stateTracker.TrackResourceState( m_default_instance_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
+            
+            m_stateTracker.Transition(m_default_instance_buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+            m_stateTracker.FlushBarriers(m_commandList.Get());
             m_commandList->CopyBufferRegion( m_default_instance_buffer.Get(), 0, m_upload_instanceBuffer.Get(), 0, instanceBufferSize );
-            m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_instance_buffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER ) );
+            m_stateTracker.Transition(m_default_instance_buffer.Get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+            m_stateTracker.FlushBarriers(m_commandList.Get());
         }
 
         // Create default proccessed buffer
@@ -436,6 +457,7 @@ void MainRender::LoadAssets()
                 IID_PPV_ARGS( &m_default_proccessed_instanceBuffer ) ) );
 
             NAME_D3D12_OBJECT( m_default_proccessed_instanceBuffer );
+            m_stateTracker.TrackResourceState( m_default_proccessed_instanceBuffer.Get(), D3D12_RESOURCE_STATE_COMMON );
         }
 
         // Create instance newpos buffer
@@ -450,6 +472,8 @@ void MainRender::LoadAssets()
                 D3D12_RESOURCE_STATE_COMMON,
                 nullptr,
                 IID_PPV_ARGS( &m_default_instance_newpos_buffer ) ) );
+            NAME_D3D12_OBJECT( m_default_instance_newpos_buffer );
+            m_stateTracker.TrackResourceState( m_default_instance_newpos_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
         }
 
         // Create is instance alive buffer
@@ -465,6 +489,8 @@ void MainRender::LoadAssets()
                 D3D12_RESOURCE_STATE_COMMON,
                 nullptr,
                 IID_PPV_ARGS( &m_default_is_instance_alive_buffer ) ) );
+            NAME_D3D12_OBJECT( m_default_is_instance_alive_buffer );
+            m_stateTracker.TrackResourceState( m_default_is_instance_alive_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
         }
     }
 
@@ -501,6 +527,8 @@ void MainRender::LoadAssets()
                 D3D12_RESOURCE_STATE_COMMON,
                 nullptr,
                 IID_PPV_ARGS( &_diffuse ) ) );
+            NAME_D3D12_OBJECT( _diffuse );
+            m_stateTracker.TrackResourceState( _diffuse.Get(), D3D12_RESOURCE_STATE_COMMON );
 
             // Create upload buffer
             const UINT64 uploadBufferSize = GetRequiredIntermediateSize( _diffuse.Get(), 0, 1 );
@@ -511,19 +539,19 @@ void MainRender::LoadAssets()
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 nullptr,
                 IID_PPV_ARGS( &_buffer ) ) );
+            NAME_D3D12_OBJECT( _buffer );
+            m_stateTracker.TrackResourceState( _buffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
             // Record command: copy image data to texture
             auto imageData = D3D12_SUBRESOURCE_DATA {};
             imageData.pData = &texture[0];
             imageData.RowPitch = texWidth * 4;
             imageData.SlicePitch = imageData.RowPitch * texHeight;
+            m_stateTracker.Transition( _diffuse.Get(), D3D12_RESOURCE_STATE_COPY_DEST );
+            m_stateTracker.FlushBarriers( m_commandList.Get() );
             UpdateSubresources( m_commandList.Get(), _diffuse.Get(), _buffer.Get(), 0, 0, 1, &imageData );
-
-            // Transition texture to shader resource state.
-            m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition(
-                _diffuse.Get(),
-                D3D12_RESOURCE_STATE_COMMON,
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE ) );
+            m_stateTracker.Transition( _diffuse.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+            m_stateTracker.FlushBarriers( m_commandList.Get() );
         }
     }
 
@@ -568,16 +596,18 @@ void MainRender::LoadAssets()
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS( &upload_command_buffer ) ) );
+        NAME_D3D12_OBJECT( upload_command_buffer );
+        m_stateTracker.TrackResourceState( upload_command_buffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
             D3D12_HEAP_FLAG_NONE,
             &CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS ),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
+            D3D12_RESOURCE_STATE_COMMON,
             nullptr,
             IID_PPV_ARGS( &m_default_command_buffer ) ) );
-
         NAME_D3D12_OBJECT( m_default_command_buffer );
+        m_stateTracker.TrackResourceState( m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
 
         // Fill the command buffer data in main memory
         std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
@@ -600,8 +630,11 @@ void MainRender::LoadAssets()
         sd.RowPitch = commandBufferDataSize;
         sd.SlicePitch = sd.RowPitch;
 
+        m_stateTracker.Transition(m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
         UpdateSubresources<1>( m_commandList.Get(), m_default_command_buffer.Get(), upload_command_buffer.Get(), 0, 0, 1, &sd );
-        m_commandList->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::Transition( m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE ) );
+        m_stateTracker.Transition(m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
     }
 
     // Create the Proccessed command buffer
@@ -616,6 +649,8 @@ void MainRender::LoadAssets()
             D3D12_RESOURCE_STATE_COMMON,
             nullptr,
             IID_PPV_ARGS( &m_default_proccessed_command_buffer ) ) );
+        NAME_D3D12_OBJECT( m_default_proccessed_command_buffer );
+        m_stateTracker.TrackResourceState( m_default_proccessed_command_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
     }
 
     // Create no culling command buffer
@@ -627,9 +662,11 @@ void MainRender::LoadAssets()
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
             D3D12_HEAP_FLAG_NONE,
             &rd,
-            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_COMMON,
             nullptr,
             IID_PPV_ARGS( &m_default_no_culling_command_buffer ) ) );
+        NAME_D3D12_OBJECT( m_default_no_culling_command_buffer );
+        m_stateTracker.TrackResourceState( m_default_no_culling_command_buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -638,6 +675,8 @@ void MainRender::LoadAssets()
             D3D12_RESOURCE_STATE_GENERIC_READ,
             nullptr,
             IID_PPV_ARGS( &upload_tmp_buffer ) ) );
+        NAME_D3D12_OBJECT( upload_tmp_buffer );
+        m_stateTracker.TrackResourceState( upload_tmp_buffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
         std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
@@ -657,10 +696,11 @@ void MainRender::LoadAssets()
         ThrowIfFailed( upload_tmp_buffer->Map( 0, &readRange, &pMappedCommandBuffer ) );
         memcpy( pMappedCommandBuffer, &commandsBufferData[0], commandBufferDataSize );
 
+        m_stateTracker.Transition(m_default_no_culling_command_buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
         m_commandList->CopyBufferRegion( m_default_no_culling_command_buffer.Get(), 0, upload_tmp_buffer.Get(), 0, commandBufferDataSize );
-
-        auto trans = CD3DX12_RESOURCE_BARRIER::Transition( m_default_no_culling_command_buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT );
-        m_commandList->ResourceBarrier( 1, &trans );
+        m_stateTracker.Transition(m_default_no_culling_command_buffer.Get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+        m_stateTracker.FlushBarriers(m_commandList.Get());
     }
 
     ExecuteGFXCommandList();
@@ -767,16 +807,12 @@ void MainRender::OnRender()
     ResetGFXCommandList();
 
     // Transist Render Target from PRESENT to RENDER_TARGET
-    {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            m_renderTargets[m_frameIndex].Get(),
-            D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATE_RENDER_TARGET );
-        m_commandList->ResourceBarrier( 1, &barrier );
-    }
 
+    m_stateTracker.Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    m_stateTracker.FlushBarriers(m_commandList.Get());
     ExecuteGFXCommandList();
 
+    
     ResetComputeCommandList();
 
     // Populate cull instance pass
@@ -784,6 +820,7 @@ void MainRender::OnRender()
         XMMATRIX view = m_mainCam.GetViewMatrix();
         XMMATRIX proj = m_mainCam.GetProjectionMatrix( FOV, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam );
         auto mvp = XMMatrixMultiply( view, proj );
+
         
         ID3D12GraphicsCommandList* in_cmd_list = m_computeCommandList.Get();
         auto in_inst_buffer = m_default_instance_buffer.Get();
@@ -804,7 +841,8 @@ void MainRender::OnRender()
             out_command_buffer,
             in_num_inst,
             in_num_meshes,
-            in_vp_no_transpose
+            in_vp_no_transpose,
+            m_stateTracker
         );
     }
 
@@ -880,14 +918,8 @@ void MainRender::OnRender()
 
     m_frustumDraw.Draw( m_commandList.Get() );
 
-    // Transist Render Target from RENDER_TARGET to PRESENT
-    {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            m_renderTargets[m_frameIndex].Get(),
-            D3D12_RESOURCE_STATE_RENDER_TARGET,
-            D3D12_RESOURCE_STATE_PRESENT );
-        m_commandList->ResourceBarrier( 1, &barrier );
-    }
+    m_stateTracker.Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT);
+    m_stateTracker.FlushBarriers(m_commandList.Get());
 
     ExecuteGFXCommandList();
 
