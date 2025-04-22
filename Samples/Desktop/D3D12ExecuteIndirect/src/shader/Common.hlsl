@@ -89,3 +89,5 @@ struct IndirectCommand
 };
 
 #define INSTANCE_COMPACTION_SCAN_BLOCK 128
+#define INSTANCE_COMPACTION_NOOF_BLOCK 2048
+// Maximum instance supported: 2048 * 128 = 262144 = 2.6e5

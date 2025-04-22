@@ -1,3 +1,4 @@
+#pragma once
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -5,11 +6,9 @@
 #include <string>
 #include <iostream>
 #include <DirectXMath.h>
+#include <random>
 
-#ifndef MYMESH_H
-#define MYMESH_H
-
-#define MODEL_SCALE (5.0f)
+#define MODEL_SCALE (1.0f)
 #define DEVELOP_INSTANCE
 
 namespace OWO
@@ -140,13 +139,11 @@ namespace OWO
         std::vector<Texture> LoadTextures( aiMaterial* mat, aiTextureType type, const std::string& typeName );
     };
 }
-#endif
 
 
-#ifdef IMPLEMENT_FBXLOADER
 namespace OWO
 {
-    bool FBXLoader::LoadFBX( const std::string& filepath )
+    inline bool FBXLoader::LoadFBX( const std::string& filepath )
     {
         Assimp::Importer importer;
         const aiScene* scene = importer.ReadFile( filepath, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_GenNormals );
@@ -166,26 +163,37 @@ namespace OWO
         * 
         */
 #ifdef DEVELOP_INSTANCE
-        auto mock_instance_data = [&]( int mesh_id ) -> std::vector<Instance>
-            {             
-                std::vector<Instance> res;
-                const float spacing = 20;
-                const int numx = 100, numy = 500;
+        auto mock_instance_data = [&](int mesh_id) -> std::vector<Instance>
+        {
+            const int kInstanceCount = 2000 * 100 / 4 / 4;
+            const float kAreaHalfSize = 200.0f;
+            const float kAreaHeight = 50.0f;
+            std::vector<Instance> instances;
+            instances.reserve(kInstanceCount);
 
-                for ( int i = 0; i < numx; i++ )
-                {
-                    for ( int j = 0; j < numy; j++ )
-                    {
-                        Instance inst;
-                        auto world = XMMatrixTranslation( spacing * (i-numx/2), (2*i*i - 3 - j*j + mesh_id) * 123456 % 23, spacing * -j );
-                        world = XMMatrixMultiply( world, XMMatrixRotationX( XMConvertToRadians( 0.0f ) ) );
-                        XMStoreFloat4x4( &inst.world, XMMatrixTranspose( world ) );
-                        inst.materialIndex = XMINT4( mesh_id, 0, 0, 0 );
-                        res.push_back( inst );
-                    }
-                }
-                return res;
-            };
+            std::mt19937 rng(mesh_id);
+            std::uniform_real_distribution<float> dist(-kAreaHalfSize, kAreaHalfSize);
+            std::uniform_real_distribution<float> dist_height( 0, kAreaHeight );
+
+            for (int i = 0; i < kInstanceCount; ++i)
+            {
+                float x = dist( rng );
+                float z = dist( rng );
+                float y = dist_height( rng );
+
+                DirectX::XMMATRIX translation = DirectX::XMMatrixTranslation(x, y, z);
+
+                DirectX::XMMATRIX worldMat = DirectX::XMMatrixTranspose(translation);
+
+                Instance inst;
+                DirectX::XMStoreFloat4x4(&inst.world, worldMat);
+                inst.materialIndex = DirectX::XMINT4(mesh_id, 0, 0, 0);
+
+                instances.push_back(inst);
+            }
+
+            return instances;
+        };
 
         for ( int i = 0; i < meshes.size(); i++ )
         {
@@ -206,7 +214,7 @@ namespace OWO
         return true;
     }
 
-    void FBXLoader::ProcessNode( aiNode* node, const aiScene* scene )
+    inline void FBXLoader::ProcessNode( aiNode* node, const aiScene* scene )
     {
         for ( unsigned int i = 0; i < node->mNumMeshes; i++ )
         {
@@ -219,7 +227,7 @@ namespace OWO
         }
     }
 
-    Mesh FBXLoader::ProcessMesh( aiMesh* mesh, const aiScene* scene )
+    inline Mesh FBXLoader::ProcessMesh( aiMesh* mesh, const aiScene* scene )
     {
         Mesh myMesh;
 
@@ -264,7 +272,7 @@ namespace OWO
         return myMesh;
     }
 
-    Material FBXLoader::LoadMaterial( aiMaterial* mat )
+    inline Material FBXLoader::LoadMaterial( aiMaterial* mat )
     {
         Material material;
         aiColor3D color( 0.0f, 0.0f, 0.0f );
@@ -280,7 +288,7 @@ namespace OWO
         return material;
     }
 
-    std::vector<Texture> FBXLoader::LoadTextures( aiMaterial* mat, aiTextureType type, const std::string& typeName )
+    inline std::vector<Texture> FBXLoader::LoadTextures( aiMaterial* mat, aiTextureType type, const std::string& typeName )
     {
         std::vector<Texture> textures;
         for ( unsigned int i = 0; i < mat->GetTextureCount( type ); i++ )
@@ -297,4 +305,3 @@ namespace OWO
         return textures;
     }
 }
-#endif

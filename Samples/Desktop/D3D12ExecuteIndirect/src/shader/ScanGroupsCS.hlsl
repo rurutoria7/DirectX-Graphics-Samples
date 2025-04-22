@@ -13,9 +13,9 @@ cbuffer OcclusionPassCB : register(b1)
     float pad;
 };
 
-#define NOOF_THREADS 1024
+#define NOOF_THREADS (INSTANCE_COMPACTION_NOOF_BLOCK / 2)
 
-groupshared uint temp[NOOF_THREADS * 2];
+groupshared uint temp[INSTANCE_COMPACTION_NOOF_BLOCK];
 
 StructuredBuffer<my_uint> groupSumArrayIn : register(t0);
 RWStructuredBuffer<my_uint> groupSumArrayOut : register(u0);
@@ -30,7 +30,7 @@ void scanGroupSums(uint3 threadID : SV_DispatchThreadID, uint3 groupThreadID : S
 {
     int tID = threadID.x;
 
-    const int NoofElements = 2 * NOOF_THREADS;
+    const int NoofElements = INSTANCE_COMPACTION_NOOF_BLOCK;
 
     int offset = 1;
     temp[2 * tID] = groupSumArrayIn[2 * tID].x;

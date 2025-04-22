@@ -67,7 +67,7 @@ private:
     static constexpr const float FovDebugCam = XM_PI / 3;                        // Field of view for the debug camera.
 
     std::string MODEL_DIR_PATH = "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\";
-    std::string MODEL_FILE_NAME = "two.obj";
+    std::string MODEL_FILE_NAME = "four_mat.obj";
     float FOV = XM_PI / 5;
 
 

@@ -137,6 +137,7 @@ void MainRender::LoadPipeline()
     swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    swapChainDesc.Flags       = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
     swapChainDesc.SampleDesc.Count = 1;
 
     ComPtr<IDXGISwapChain1> swapChain;
@@ -925,8 +926,12 @@ void MainRender::OnRender()
 
     PIXEndEvent( m_commandQueue.Get() );
 
-    ThrowIfFailed( m_swapChain->Present( 1, 0 ) );
-
+    DXGI_PRESENT_PARAMETERS pp = {};
+    m_swapChain->Present1(
+        0,                         
+        DXGI_PRESENT_ALLOW_TEARING,
+        &pp
+    );
     MoveToNextFrame();
     
 }
