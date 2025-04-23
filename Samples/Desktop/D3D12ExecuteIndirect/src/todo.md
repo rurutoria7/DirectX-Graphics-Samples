@@ -1,16 +1,19 @@
 ## next week
 
 - tier 1
-    - [ ] 用 Nsight 來分析 naive compute shader 的效能
-    - [ ] 更換 mesh 
-- tier 2
-    - [ ] thread group size 的設置原理
+    - [ ] 實作 instance data parser
+    - [ ] 支援更多 instance
+    - [ ] 重新 profile
+    - [ ] 重新改 profile 結果的簡報
+    - [x] 重畫 Culling Pipeline 圖片
+- future
     - [ ] 有那些 workgraph 可以優化的空間？e.g. 根據 intermediate 的結果來節省掉不必要的 dispatch
     - [ ] 當前 pipeline 的 workgraph 版本移植
     - [ ] 优化原子加法 wave intrinsics
-- tier 3
-    - [ ] belloch prefix sum 正確性説明
 - done
+    - [x] belloch prefix sum 正確性説明
+    - [x] 更換 mesh 
+    - [x] thread group size 的設置原理
     - [x] 封裝 resource
     - [x] multi-mesh 的 instance 剔除
     - [x] single-mesh instance 剔除
@@ -47,4 +50,27 @@ flowchart TD
     CopyPass -->|Instance Buffer| RenderPass
     CommandScanPass -->|Command Buffer| RenderPass
 
+```
+
+```mermaid
+flowchart LR
+    RenderPass[Render Pass]
+
+    subgraph Culling Pipeline
+        KillPass[Kill Instance Pass]
+        PrefixScanPass[Prefix Scan Pass]
+        GroupScanPass[Group Scan Pass]
+        CopyPass[Copy Instances Pass]
+        CommandScanPass[Scan Command Buffer Pass]
+
+        KillPass --> PrefixScanPass
+        subgraph Compaction
+        PrefixScanPass --> GroupScanPass
+        GroupScanPass --> CopyPass
+        end
+        
+
+        CopyPass --> CommandScanPass
+    end
+    CommandScanPass --> RenderPass
 ```

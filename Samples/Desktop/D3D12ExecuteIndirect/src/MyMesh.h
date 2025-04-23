@@ -5,11 +5,12 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <DirectXMath.h>
 #include <random>
 
+#define DEV_LOAD_INSTANCE_BLOB
 #define MODEL_SCALE (1.0f)
-#define DEVELOP_INSTANCE
 
 namespace OWO
 {
@@ -157,11 +158,6 @@ namespace OWO
         meshes.clear();
         ProcessNode( scene->mRootNode, scene );
 
-        /* TOODOO: Read instance data from file (low priority)
-        * possible API: FBXLoader::AttachInstanceData( int meshIndex, const std::string& filepath )
-        * called after LoadFBX
-        * 
-        */
 #ifdef DEVELOP_INSTANCE
         auto mock_instance_data = [&](int mesh_id) -> std::vector<Instance>
         {
@@ -200,6 +196,150 @@ namespace OWO
             meshes[i].instances = mock_instance_data( i );
         }
 #endif
+
+        
+
+#ifdef DEV_LOAD_INSTANCE_BLOB
+        auto generate_instance_data_blob = [&](const std::string& filepath) 
+        {
+            const int kInstanceCount = 100;
+            const float kAreaHalfSize = 200.0f;
+            const float kAreaHeight = 50.0f;
+
+            std::ofstream file(filepath, std::ios::binary);
+            if (!file.is_open()) {
+                std::cerr << "ERROR: Failed to create instance data file: " << filepath << std::endl;
+                return;
+            }
+
+            for (int mesh_id = 0; mesh_id < meshes.size(); mesh_id++) {
+                std::mt19937 rng(mesh_id);
+                std::uniform_real_distribution<float> dist(-kAreaHalfSize, kAreaHalfSize);
+                std::uniform_real_distribution<float> dist_height(0, kAreaHeight);
+                std::uniform_real_distribution<float> rot_dist(0, DirectX::XM_2PI);
+
+                int count = kInstanceCount;
+                file.write(reinterpret_cast<char*>(&count), sizeof(int));
+
+                for (int i = 0; i < count; i++) {
+                    float offset_x = dist(rng);
+                    float offset_y = dist_height(rng);
+                    float offset_z = dist(rng);
+                    float rot_x = rot_dist(rng);
+                    float rot_y = rot_dist(rng);
+                    float rot_z = rot_dist(rng);
+                    
+                    file.write(reinterpret_cast<char*>(&offset_x), sizeof(float));
+                    file.write(reinterpret_cast<char*>(&offset_y), sizeof(float));
+                    file.write(reinterpret_cast<char*>(&offset_z), sizeof(float));
+                    file.write(reinterpret_cast<char*>(&rot_x), sizeof(float));
+                    file.write(reinterpret_cast<char*>(&rot_y), sizeof(float));
+                    file.write(reinterpret_cast<char*>(&rot_z), sizeof(float));
+                }
+            }
+
+            int terminator = -1;
+            file.write(reinterpret_cast<char*>(&terminator), sizeof(int));
+            file.close();
+        };
+#endif        
+        auto load_instance_data_blob = [this](const std::string& filepath)
+        {
+        /**
+         * @brief Loads instance data from a binary file and populates the mesh instances.
+         * 
+         * The binary file is expected to contain instance data in the following format:
+         * 
+         * 1. A sequence of instance groups, where i-th group represents the i-th mesh in the scene. Each group consists of:
+         *    - An signed integer (4 bytes), specifying the number of instances in the group (`noof_inst`).
+         *    - A sequence of `noof_inst` instances, where each instance consists of:
+         *      - float offset_x (4 bytes): The x-coordinate of the instance's translation offset.
+         *      - float offset_y (4 bytes): The y-coordinate of the instance's translation offset.
+         *      - float offset_z (4 bytes): The z-coordinate of the instance's translation offset.
+         *      - float rot_x (4 bytes): The rotation angle around the x-axis in radians.
+         *      - float rot_y (4 bytes): The rotation angle around the y-axis in radians.
+         *      - float rot_z (4 bytes): The rotation angle around the z-axis in radians.
+         * 
+         * 2. The sequence ends when either:
+         *    - A negative value is encountered for `noof_inst`, or
+         *    - End of file (EOF) is reached after the last complete group
+         * 
+         * @param filepath The path to the binary file containing the instance data.
+         * 
+         * @note The function assumes that the binary file is well-formed and does not perform
+         *       extensive validation of the file's contents. If the file is malformed, the behavior
+         *       is undefined.
+         * @note The `meshes` container is updated with the loaded instances, where each group of
+         *       instances corresponds to a different mesh ID.
+         */                        
+            struct Inst {
+                float offset_x;
+                float offset_y;
+                float offset_z;
+                float rot_x;
+                float rot_y;
+                float rot_z;
+            };
+
+            std::ifstream file(filepath, std::ios::binary);
+            if (!file.is_open())
+            {
+                std::cerr << "ERROR: Failed to open instance data file: " << filepath << std::endl;
+                std::exit(0);
+            }
+
+            file.seekg(0, std::ios::end);
+            size_t fileSize = file.tellg();
+            file.seekg(0, std::ios::beg);
+
+            auto following_num = [&]()
+            {
+                if (file.eof() || !file.good()) return -1; // Check EOF or bad state
+                int value;
+                file.read(reinterpret_cast<char*>(&value), sizeof(int));
+                return file.eof() ? -1 : value;
+            };
+
+            int noof_inst;
+            int mesh_id = 0;
+            while ((noof_inst = following_num()) >= 0)
+            {
+                std::vector<Inst> _inst;
+                _inst.resize(noof_inst);
+                file.read(reinterpret_cast<char*>(_inst.data()), noof_inst * sizeof(Inst));
+
+                for (const auto& inst : _inst)
+                {
+                    DirectX::XMMATRIX translation = DirectX::XMMatrixTranslation(inst.offset_x, inst.offset_y, inst.offset_z);
+                    DirectX::XMMATRIX rotationX = DirectX::XMMatrixRotationX(inst.rot_x);
+                    DirectX::XMMATRIX rotationY = DirectX::XMMatrixRotationY(inst.rot_y);
+                    DirectX::XMMATRIX rotationZ = DirectX::XMMatrixRotationZ(inst.rot_z);
+
+                    DirectX::XMMATRIX worldMat = DirectX::XMMatrixTranspose(rotationX * rotationY * rotationZ * translation);
+
+                    Instance instance;
+                    DirectX::XMStoreFloat4x4(&instance.world, worldMat);
+                    instance.materialIndex = DirectX::XMINT4(mesh_id, 0, 0, 0);
+
+                    meshes[mesh_id].instances.push_back(instance);
+                }
+                mesh_id++;
+            }
+
+            file.close();
+        };
+
+
+        // Generate instance data file if it doesn't exist
+        std::string instanceDataPath = filepath + ".instances";
+        std::ifstream checkFile(instanceDataPath, std::ios::binary);
+        if (!checkFile.good()) {
+            generate_instance_data_blob(instanceDataPath);
+        }
+        checkFile.close();
+
+        // Load instance data
+        load_instance_data_blob(instanceDataPath);
 
         // Flatten
         for ( auto& mesh : meshes )
