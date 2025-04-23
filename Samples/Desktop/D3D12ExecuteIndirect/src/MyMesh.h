@@ -300,10 +300,10 @@ namespace OWO
                 return file.eof() ? -1 : value;
             };
 
-            int noof_inst;
-            int mesh_id = 0;
-            while ((noof_inst = following_num()) >= 0)
+            for (int mesh_id = 0; mesh_id < meshes.size(); mesh_id++ )
             {
+                int noof_inst = following_num();
+                if ( noof_inst < 0 ) break;
                 std::vector<Inst> _inst;
                 _inst.resize(noof_inst);
                 file.read(reinterpret_cast<char*>(_inst.data()), noof_inst * sizeof(Inst));

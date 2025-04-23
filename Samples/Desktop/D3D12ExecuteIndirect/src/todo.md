@@ -1,16 +1,16 @@
 ## next week
 
 - tier 1
-    - [ ] 實作 instance data parser
     - [ ] 支援更多 instance
-    - [ ] 重新 profile
-    - [ ] 重新改 profile 結果的簡報
-    - [x] 重畫 Culling Pipeline 圖片
+        - [ ] 重新 profile
+            - [ ] 重新改 profile 結果的簡報
 - future
     - [ ] 有那些 workgraph 可以優化的空間？e.g. 根據 intermediate 的結果來節省掉不必要的 dispatch
     - [ ] 當前 pipeline 的 workgraph 版本移植
     - [ ] 优化原子加法 wave intrinsics
 - done
+    - [x] 重畫 Culling Pipeline 圖片
+    - [x] 實作 instance data parser
     - [x] belloch prefix sum 正確性説明
     - [x] 更換 mesh 
     - [x] thread group size 的設置原理
