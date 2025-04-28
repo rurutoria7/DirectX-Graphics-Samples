@@ -30,7 +30,6 @@ bool isInFrustum(float4 clipPos)
     "UAV(u1)")]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 groupId : SV_GroupID, uint3 groupThreadId : SV_GroupThreadID)
 {
-    // 讓 thread 0 初始化所有 mesh 的 instanceCount
     if (DTid.x == 0)
     {
         for (uint meshId = 0; meshId < numMeshes; meshId++)
@@ -38,8 +37,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 groupId : SV_GroupID, uint3 gr
             outCommands[meshId].draw_InstanceCount = 0;
         }
     }
-    
-    // 全局內存屏障，確保所有線程都能看到初始化的值
     DeviceMemoryBarrierWithGroupSync();
     
     uint idx = DTid.x;

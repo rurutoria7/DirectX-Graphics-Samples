@@ -8,6 +8,8 @@
 #include <fstream>
 #include <DirectXMath.h>
 #include <random>
+#include <filesystem>
+#include "render_pass/CullInstancePass.h"
 
 #define DEV_LOAD_INSTANCE_BLOB
 #define MODEL_SCALE (1.0f)
@@ -202,9 +204,12 @@ namespace OWO
 #ifdef DEV_LOAD_INSTANCE_BLOB
         auto generate_instance_data_blob = [&](const std::string& filepath) 
         {
-            const int kInstanceCount = 100;
+            const int kInstanceCount = CullInstancePass<0>::SCAN_BLOCK * CullInstancePass<0>::NUM_SCAN_BLOCK / 4;
             const float kAreaHalfSize = 200.0f;
             const float kAreaHeight = 50.0f;
+
+            // Make sure to regenerate file first
+            std::filesystem::remove(filepath);
 
             std::ofstream file(filepath, std::ios::binary);
             if (!file.is_open()) {
@@ -284,7 +289,7 @@ namespace OWO
             std::ifstream file(filepath, std::ios::binary);
             if (!file.is_open())
             {
-                std::cerr << "ERROR: Failed to open instance data file: " << filepath << std::endl;
+                OutputDebugStringW( L"ERROR: Failed to open instance data file \n" );
                 std::exit(0);
             }
 
@@ -323,7 +328,6 @@ namespace OWO
 
                     meshes[mesh_id].instances.push_back(instance);
                 }
-                mesh_id++;
             }
 
             file.close();
@@ -333,7 +337,7 @@ namespace OWO
         // Generate instance data file if it doesn't exist
         std::string instanceDataPath = filepath + ".instances";
         std::ifstream checkFile(instanceDataPath, std::ios::binary);
-        if (!checkFile.good()) {
+        if (1 && !checkFile.good()) {
             generate_instance_data_blob(instanceDataPath);
         }
         checkFile.close();

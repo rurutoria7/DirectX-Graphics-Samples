@@ -119,6 +119,7 @@
     <ClInclude Include="render_pass\GraphicsPass.h" />
     <ClInclude Include="MyMesh.h" />
     <ClInclude Include="render_pass\ProccessCommandPass.h" />
+    <ClInclude Include="ResourceStateTracker.h" />
     <ClInclude Include="SimpleCamera.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="StepTimer.h" />
@@ -142,6 +143,12 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="shader\ClearBufferCS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.1</ShaderModel>
+    </FxCompile>
     <FxCompile Include="shader\CopyInstancesCS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.6</ShaderModel>

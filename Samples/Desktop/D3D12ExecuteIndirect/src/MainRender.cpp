@@ -37,12 +37,12 @@ MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
     m_fenceEvent( nullptr ),
     m_pCbvDataBegin( nullptr )
 {
-    m_constantBufferData.resize( MaxNumMeshes * FrameCount );
+    m_constantBufferData.resize( MAX_NUM_MESHES * FrameCount );
 
     m_csRootConstants.xOffset = TriangleHalfWidth;
     m_csRootConstants.zOffset = TriangleDepth;
     m_csRootConstants.cullOffset = CullingCutoff;
-    m_csRootConstants.commandCount = MaxNumMeshes;
+    m_csRootConstants.commandCount = MAX_NUM_MESHES;
 
     float center = width / 2.0f;
     m_cullingScissorRect.left = static_cast<LONG>(center - (center * CullingCutoff));
@@ -426,7 +426,7 @@ void MainRender::LoadAssets()
 
         // Create default buffer & copy data from upload buffer
         {
-            auto buffer_size = CullInstancePass::get_padded_size( _instances.size() ) * sizeof( OWO::Instance );
+            auto buffer_size = CullInstancePass<0>::get_padded_size( _instances.size() ) * sizeof( OWO::Instance );
 
             ThrowIfFailed( m_device->CreateCommittedResource(
                 &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
@@ -461,38 +461,6 @@ void MainRender::LoadAssets()
             m_stateTracker.TrackResourceState( m_default_proccessed_instanceBuffer.Get(), D3D12_RESOURCE_STATE_COMMON );
         }
 
-        // Create instance newpos buffer
-        {
-            auto buffer_size = CullInstancePass::get_padded_size( _instances.size() ) * sizeof( unsigned int );
-            auto flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-            ThrowIfFailed( m_device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-                D3D12_HEAP_FLAG_NONE,
-                &CD3DX12_RESOURCE_DESC::Buffer( buffer_size, flags ),
-                D3D12_RESOURCE_STATE_COMMON,
-                nullptr,
-                IID_PPV_ARGS( &m_default_instance_newpos_buffer ) ) );
-            NAME_D3D12_OBJECT( m_default_instance_newpos_buffer );
-            m_stateTracker.TrackResourceState( m_default_instance_newpos_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
-        }
-
-        // Create is instance alive buffer
-        {
-            auto buffer_size = CullInstancePass::get_padded_size( _instances.size() ) * sizeof( unsigned int );
-            auto flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-
-            ThrowIfFailed( m_device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
-                D3D12_HEAP_FLAG_NONE,
-                &CD3DX12_RESOURCE_DESC::Buffer( buffer_size, flags ),
-                D3D12_RESOURCE_STATE_COMMON,
-                nullptr,
-                IID_PPV_ARGS( &m_default_is_instance_alive_buffer ) ) );
-            NAME_D3D12_OBJECT( m_default_is_instance_alive_buffer );
-            m_stateTracker.TrackResourceState( m_default_is_instance_alive_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
-        }
     }
 
     // Create diffuse texture.
@@ -588,7 +556,7 @@ void MainRender::LoadAssets()
     // Create the Command buffer.
     ComPtr<ID3D12Resource> upload_command_buffer;
     {
-        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = MAX_NUM_MESHES * sizeof( IndirectCommand );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -611,7 +579,7 @@ void MainRender::LoadAssets()
         m_stateTracker.TrackResourceState( m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
 
         // Fill the command buffer data in main memory
-        std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
+        std::vector<IndirectCommand> commandsBufferData( MAX_NUM_MESHES );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
         {
             IndirectCommand cmd;
@@ -640,7 +608,7 @@ void MainRender::LoadAssets()
 
     // Create the Proccessed command buffer
     {
-        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = MAX_NUM_MESHES * sizeof( IndirectCommand );
 
         auto rd = CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
         ThrowIfFailed( m_device->CreateCommittedResource(
@@ -657,7 +625,7 @@ void MainRender::LoadAssets()
     // Create no culling command buffer
     ComPtr<ID3D12Resource> upload_tmp_buffer;
     {
-        const UINT commandBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = MAX_NUM_MESHES * sizeof( IndirectCommand );
         auto rd = CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize );
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
@@ -679,7 +647,7 @@ void MainRender::LoadAssets()
         NAME_D3D12_OBJECT( upload_tmp_buffer );
         m_stateTracker.TrackResourceState( upload_tmp_buffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
-        std::vector<IndirectCommand> commandsBufferData( m_fbxLoader.NumMeshes() );
+        std::vector<IndirectCommand> commandsBufferData( MAX_NUM_MESHES );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
         {
             IndirectCommand cmd;
@@ -822,29 +790,16 @@ void MainRender::OnRender()
         XMMATRIX proj = m_mainCam.GetProjectionMatrix( FOV, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam );
         auto mvp = XMMatrixMultiply( view, proj );
 
-        
-        ID3D12GraphicsCommandList* in_cmd_list = m_computeCommandList.Get();
-        auto in_inst_buffer = m_default_instance_buffer.Get();
-        auto out_is_inst_alive_buffer = m_default_is_instance_alive_buffer.Get();
-        auto out_inst_newpos_buffer = m_default_instance_newpos_buffer.Get();
-        auto out_proccessed_inst_buffer = m_default_proccessed_instanceBuffer.Get();
-        auto out_command_buffer = m_default_command_buffer.Get();
-        UINT in_num_inst = m_fbxLoader.GetInstances().size();
-        UINT in_num_meshes = m_fbxLoader.NumMeshes();
-        DirectX::XMMATRIX in_vp_no_transpose = mvp;
+        CullInstancePass<65536>::RecordDispatchParams params;
+        params.cmd_list = m_computeCommandList.Get();
+        params.inst_buffer = m_default_instance_buffer.Get();
+        params.processed_inst_buffer = m_default_proccessed_instanceBuffer.Get();
+        params.command_buffer = m_default_command_buffer.Get();
+        params.num_inst = m_fbxLoader.GetInstances().size();
+        params.num_meshes = m_fbxLoader.NumMeshes();
+        params.vp_no_transpose = mvp;
 
-        m_cullInstancePass.record_dispatch(
-            in_cmd_list,
-            in_inst_buffer,
-            out_is_inst_alive_buffer,
-            out_inst_newpos_buffer,
-            out_proccessed_inst_buffer,
-            out_command_buffer,
-            in_num_inst,
-            in_num_meshes,
-            in_vp_no_transpose,
-            m_stateTracker
-        );
+        m_cullInstancePass.record_dispatch(params, m_stateTracker);
     }
 
     ExecuteComputeCommandList();
