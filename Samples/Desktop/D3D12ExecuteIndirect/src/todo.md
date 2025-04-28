@@ -1,15 +1,19 @@
 ## next week
 
 - tier 1
-    - [ ] 支援更多 instance
-        - [ ] 實作 clear buffer pass (創建 uav srv cbv heap?)
+    - [x] 支援更多 instance
+        - [x] 實作 clear buffer pass (創建 uav srv cbv heap?)
             1. 把該清零的 <--> 沒有外部資料 dependencies 的，搬進來 pass 內部，並且封裝 buffer size
                 - group_sum_buffer, scanned_group_sum_buffer, alive_buffer, newpos_buffer
             2. 傳入 command buffer 的 buffer size
             3. 把 buffer size 們都 pass 進去 clear pass
             4. 發起 clear pass
+        - [ ] 爲什麽把 out command 清零會出錯？
+            - default
+            - default_proccessed
+            - default --> default_proccessed
+            - render: proccessed, no_culling
     - [ ] workgraph 版本
-    - [ ] 統一 buffer size 的創建
 
 - future
     - [ ] 有那些 workgraph 可以優化的空間？e.g. 根據 intermediate 的結果來節省掉不必要的 dispatch

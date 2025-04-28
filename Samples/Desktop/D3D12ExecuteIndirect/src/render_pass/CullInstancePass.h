@@ -160,6 +160,7 @@ struct CullInstancePass
             cb.group_sum_buffer_noof_elements = m_group_sum_buffer.desc.Width / sizeof( unsigned );
             cb.inst_newpos_buffer_noof_elements = m_inst_newpos_buffer.desc.Width / sizeof( unsigned );
             cb.is_inst_alive_buffer_noof_elements = m_is_inst_alive_buffer.desc.Width / sizeof( unsigned );
+            cb.command_buffer_noof_elements = MAX_NUM_MESHES;
         };
         auto dispatch_kill_instance_pass = [in_cmd_list, this, in_num_inst, in_num_meshes, in_vp_no_transpose](
             auto in_inst_buffer,
@@ -305,6 +306,9 @@ struct CullInstancePass
 
             // slot 4: root UAV <--> RWStructuredBuffer<my_uint> scannedInstancePredicates, u3
             in_cmd_list->SetComputeRootUnorderedAccessView( 4, processed_inst_buffer );
+
+            // slot 5: root UAV
+            in_cmd_list->SetComputeRootUnorderedAccessView( 5, command_buffer );
 
             unsigned groupX = 1 +  m_clear_buffer_cb.scanned_group_sum_buffer_noof_elements / NUM_THREADS_OF_CLEAR_BUFFER;
             in_cmd_list->Dispatch( groupX, 1, 1 );

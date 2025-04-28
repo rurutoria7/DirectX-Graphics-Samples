@@ -6,12 +6,15 @@ cbuffer ClearBufferCB : register(b1)
     uint group_sum_buffer_noof_elements;
     uint inst_newpos_buffer_noof_elements;
     uint is_inst_alive_buffer_noof_elements;
+    uint command_buffer_noof_elements;
+    uint3 padding;
 }
 
 RWStructuredBuffer<my_uint> is_inst_alive_buffer : register(u0);       // noof instance
 RWStructuredBuffer<my_uint> scanned_group_sum_buffer : register(u1);   // noof instance
 RWStructuredBuffer<my_uint> inst_newpos_buffer : register(u2);         // noof instance
 RWStructuredBuffer<my_uint> group_sum_buffer : register(u3);           // noof instance
+RWStructuredBuffer<IndirectCommand> command_buffer : register(u4);
 
 #define NOOF_THREADS 64
 
@@ -22,6 +25,7 @@ RWStructuredBuffer<my_uint> group_sum_buffer : register(u3);           // noof i
     "UAV(u1), "
     "UAV(u2), "
     "UAV(u3), "
+    "UAV(u4)"
 )]
 
 void main
@@ -44,4 +48,11 @@ void main
 
     if (tID < is_inst_alive_buffer_noof_elements)
         is_inst_alive_buffer[tID].x = 0;
+
+    if (tID < command_buffer_noof_elements)
+    {
+        //command_buffer[tID].draw_InstanceCount = 0;
+        // [TOODOO] don't know why add this line will lead to rendering nothing while culling disabled
+        command_buffer[tID].draw_StartInstanceLocation = 0;
+    }
 }
