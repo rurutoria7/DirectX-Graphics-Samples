@@ -88,6 +88,7 @@ struct IndirectCommand
     uint _padding;                   // pad 28 bytes to 32 bytes
 };
 
+#define MAX_NOOF_INSTANCE 65536
 #define INSTANCE_COMPACTION_SCAN_BLOCK 128
 #define INSTANCE_COMPACTION_NOOF_BLOCK 2048
 // Maximum instance supported: 2048 * 128 = 262144 = 2.6e5

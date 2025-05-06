@@ -22,6 +22,12 @@
 
 // #define _DEBUG
 
+extern "C"
+{
+    __declspec(dllexport) extern const UINT  D3D12SDKVersion = 615;
+    __declspec(dllexport) extern const char* D3D12SDKPath    = u8".\\D3D12\\";
+}
+
 
 const UINT MainRender::CommandBufferCounterOffset = AlignForUavCounter( MainRender::CommandSizePerFrame );
 
@@ -747,7 +753,6 @@ void MainRender::OnRender()
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
                 {
                     int diffID = m_fbxLoader.meshes[i].material.GetTextureID( "diffuse", m_fbxLoader.GetTextures() );
-                    if ( diffID >= 0 ) diffID += TextureOffset;
                     m_constantBufferData[i].textureID = XMINT4( diffID, 0, 0, 0 );
                     XMStoreFloat4x4( &m_constantBufferData[i].mvp, XMMatrixTranspose( mvp ) );
                 }
@@ -761,7 +766,6 @@ void MainRender::OnRender()
                 for ( UINT i = 0; i < m_fbxLoader.NumMeshes(); i++ )
                 {
                     int diffID = m_fbxLoader.meshes[i].material.GetTextureID( "diffuse", m_fbxLoader.GetTextures() );
-                    if ( diffID >= 0 ) diffID += TextureOffset;
                     m_constantBufferData[i].textureID = XMINT4( diffID, 0, 0, 0 );
                     XMStoreFloat4x4( &m_constantBufferData[i].mvp, XMMatrixTranspose( mvp ) );
                 }
@@ -829,6 +833,7 @@ void MainRender::OnRender()
 
         auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE( m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize );
         auto dsvHandle = m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
+        auto diffuseSrvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart(), TextureOffset, m_cbvSrvUavDescriptorSize); 
 
         D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
         vertexBufferView.BufferLocation = m_default_vertexBuffer->GetGPUVirtualAddress();
@@ -849,7 +854,7 @@ void MainRender::OnRender()
 
         m_graphicsPass.SetBeforeDraw(
             m_commandList.Get(),
-            rtvHandle, dsvHandle,
+            rtvHandle, dsvHandle, diffuseSrvHandle,
             vertexBufferView, instanceBufferView, indexBufferView, 
             m_width, m_height,
             in_left_or_right, in_do_clear );

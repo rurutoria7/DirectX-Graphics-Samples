@@ -16,7 +16,8 @@ struct GraphicsPass
     // Graphics root signature parameter offsets.
     enum GraphicsRootParameters
     {
-        Cbv,
+        SlotCbv,
+        SlotDiffuseTextures,
         GraphicsRootParametersCount
     };
 
@@ -41,12 +42,16 @@ struct GraphicsPass
                 featureData.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
             }
 
+            CD3DX12_DESCRIPTOR_RANGE1 DescRange;
+            DescRange.Init( D3D12_DESCRIPTOR_RANGE_TYPE_SRV, -1, 0 );
+
             // Graphics root signature
             /*
                 Cbv: CBV(b0)
             */
             CD3DX12_ROOT_PARAMETER1 rootParameters[GraphicsRootParametersCount] = {};
-            rootParameters[Cbv].InitAsConstantBufferView( 0, 0 );
+            rootParameters[SlotCbv].InitAsConstantBufferView( 0, 0 );
+            rootParameters[SlotDiffuseTextures].InitAsDescriptorTable( 1, &DescRange );
 
             D3D12_STATIC_SAMPLER_DESC sampler = {};
             sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -140,7 +145,7 @@ struct GraphicsPass
         {
             D3D12_INDIRECT_ARGUMENT_DESC argumentDescs[2] = {};
             argumentDescs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW;
-            argumentDescs[0].ConstantBufferView.RootParameterIndex = GraphicsPass<0>::Cbv; // 0
+            argumentDescs[0].ConstantBufferView.RootParameterIndex = GraphicsPass<0>::SlotCbv; // 0
             argumentDescs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
 
             D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc = {};
@@ -156,6 +161,7 @@ struct GraphicsPass
         ID3D12GraphicsCommandList* in_commandList,
         D3D12_CPU_DESCRIPTOR_HANDLE in_rtvHandle,
         D3D12_CPU_DESCRIPTOR_HANDLE in_dsvHandle,
+        D3D12_GPU_DESCRIPTOR_HANDLE in_diffuseTexture_srv_handle,
         D3D12_VERTEX_BUFFER_VIEW in_vbv,
         D3D12_VERTEX_BUFFER_VIEW in_instanceVbv,
         D3D12_INDEX_BUFFER_VIEW in_ibv,
@@ -209,6 +215,11 @@ struct GraphicsPass
 
                 in_commandList->RSSetViewports( 1, &viewport );
                 in_commandList->RSSetScissorRects( 1, &scissorRect );
+            }
+
+            // Bind descriptor table
+            {
+                in_commandList->SetGraphicsRootDescriptorTable( SlotDiffuseTextures, in_diffuseTexture_srv_handle );
             }
         }
     }

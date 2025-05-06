@@ -1,9 +1,49 @@
 #pragma once
+#include "../defines.h"
 #include <DirectXMath.h>
 #include "d3dx12.h"
 #include "../DXSampleHelper.h"
 #include <iostream>
 #include "../ResourceStateTracker.h"
+
+#ifdef GR_WORKGRAPH
+class WorkGraphContext
+{
+public:
+    void Init(ID3D12Device* in_device, ComPtr<ID3D12StateObject> spSO, LPCWSTR pWorkGraphName, ResourceStateTracker& in_state_tracker)
+    {
+        auto make_buffer = [in_device]( ComPtr<ID3D12Resource>& spBuffer, UINT64 size, D3D12_RESOURCE_FLAGS flags )
+        {
+            CD3DX12_HEAP_PROPERTIES heapProps( D3D12_HEAP_TYPE_DEFAULT );
+            CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer( size, flags );
+            ThrowIfFailed( in_device->CreateCommittedResource(
+                &heapProps,
+                D3D12_HEAP_FLAG_NONE,
+                &bufferDesc,
+                D3D12_RESOURCE_STATE_COMMON,
+                nullptr,
+                IID_PPV_ARGS( &spBuffer ) ) );
+        };
+
+        ComPtr<ID3D12StateObjectProperties1> spSOProps;
+        // spSOProps = spSO;
+        spSO.As(&spSOProps);
+        hWorkGraph = spSOProps->GetProgramIdentifier(pWorkGraphName);
+        ComPtr<ID3D12WorkGraphProperties> spWGProps;
+        spSO.As(&spWGProps);
+        UINT WorkGraphIndex = spWGProps->GetWorkGraphIndex(pWorkGraphName);
+        spWGProps->GetWorkGraphMemoryRequirements(WorkGraphIndex, &MemReqs);
+        BackingMemory.SizeInBytes = MemReqs.MaxSizeInBytes;
+        make_buffer(spBackingMemory, BackingMemory.SizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        BackingMemory.StartAddress = spBackingMemory->GetGPUVirtualAddress();
+        in_state_tracker.TrackResourceState(spBackingMemory.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    }
+    ComPtr<ID3D12Resource> spBackingMemory;
+    D3D12_GPU_VIRTUAL_ADDRESS_RANGE BackingMemory = {};
+    D3D12_PROGRAM_IDENTIFIER hWorkGraph = {};
+    D3D12_WORK_GRAPH_MEMORY_REQUIREMENTS MemReqs = {};
+};
+#endif
 
 template<size_t MAX_NUM_MESHES>
 struct CullInstancePass
@@ -64,6 +104,12 @@ struct CullInstancePass
     ComPtr<ID3D12RootSignature> m_rs_scan_command_pass;
     ComPtr<ID3D12PipelineState> m_pso_scan_command_pass;
 
+#ifdef GR_WORKGRAPH
+    ComPtr<ID3D12StateObject> spSO;
+    ComPtr<ID3D12RootSignature> spRS;
+    WorkGraphContext WG;
+#endif
+
     static constexpr uint32_t ceil_div( uint32_t x, uint32_t y ) { return (x + y - 1) / y; }
 
     static uint32_t get_padded_size( uint32_t instance_count )
@@ -74,7 +120,7 @@ struct CullInstancePass
     }
 
     void init(
-        ID3D12Device* in_device,
+        ID3D12Device14* in_device,
         std::wstring in_asset_path,
         unsigned in_num_inst,
         ResourceStateTracker& in_state_tracker )
@@ -114,6 +160,35 @@ struct CullInstancePass
                 in_state_tracker.TrackResourceState( res.buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
             };
 
+#ifdef GR_WORKGRAPH
+        auto wg_init = [in_device, in_asset_path, &in_state_tracker, this](){
+            CD3DX12_STATE_OBJECT_DESC SO(D3D12_STATE_OBJECT_TYPE_EXECUTABLE);
+            auto pLib = SO.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+
+            std::wstring c_csFilename = in_asset_path + L"Dummy_wg.cso";
+            struct
+            {
+                byte* data;
+                uint32_t size;
+            } cshader;
+            ThrowIfFailed( ReadDataFromFile( c_csFilename.c_str(), &cshader.data, &cshader.size ) );
+
+            CD3DX12_SHADER_BYTECODE libCode;
+            libCode = { cshader.data, cshader.size };
+            pLib->SetDXILLibrary(&libCode);
+            ThrowIfFailed(in_device->CreateRootSignatureFromSubobjectInLibrary(0, libCode.pShaderBytecode, libCode.BytecodeLength, L"globalRS", IID_PPV_ARGS(&spRS)));
+
+            auto pWG = SO.CreateSubobject<CD3DX12_WORK_GRAPH_SUBOBJECT>();
+            pWG->IncludeAllAvailableNodes(); // Auto populate the graph
+            LPCWSTR workGraphName = L"HelloWorkGraphs";
+            pWG->SetProgramName(workGraphName);
+
+            ThrowIfFailed(in_device->CreateStateObject(SO, IID_PPV_ARGS(&spSO)));
+            WG.Init(in_device, spSO, workGraphName, in_state_tracker);
+        };
+        wg_init();
+#endif
+
         create_pso_rs( L"ClearBufferCS.cso", m_rs_clear_buffer_pass, m_pso_clear_buffer_pass );
         create_pso_rs( L"KillInstancesCS.cso", m_rs_kill_instance_pass, m_pso_kill_instance_pass );
         create_pso_rs( L"ScanInstancesCS.cso", m_rs_scan_prefix_pass, m_pso_scan_prefix_pass );
@@ -129,7 +204,7 @@ struct CullInstancePass
 
     struct RecordDispatchParams
     {
-        ID3D12GraphicsCommandList* cmd_list;
+        ID3D12GraphicsCommandList10* cmd_list;
         ID3D12Resource* inst_buffer;
         ID3D12Resource* processed_inst_buffer;
         ID3D12Resource* command_buffer;
@@ -147,14 +222,13 @@ struct CullInstancePass
         auto& in_num_meshes = in_params.num_meshes;
         auto& in_vp_no_transpose = in_params.vp_no_transpose;
 
-        auto fill_cb = [in_num_inst, in_num_meshes](CB& cb)
-            {
-                cb = {};
-                UINT noofGroups = get_padded_size( in_num_inst ) / (NUM_SCAN_BLOCK);
-                noofGroups = (UINT) pow( 2, floor( log( noofGroups ) / log( 2 ) ) + 1 );
-                cb.NoofGroups = noofGroups;
-                cb.NoofDrawcalls = in_num_meshes;
-            };
+        auto fill_cb = [in_num_inst, in_num_meshes](CB& cb){
+            cb = {};
+            UINT noofGroups = get_padded_size( in_num_inst ) / (NUM_SCAN_BLOCK);
+            noofGroups = (UINT) pow( 2, floor( log( noofGroups ) / log( 2 ) ) + 1 );
+            cb.NoofGroups = noofGroups;
+            cb.NoofDrawcalls = in_num_meshes;
+        };
         auto fill_clear_buffer_cb = [this, in_num_meshes](ClearBufferCB& cb) {
             cb.scanned_group_sum_buffer_noof_elements = m_scanned_group_sum_buffer.desc.Width / sizeof( unsigned );
             cb.group_sum_buffer_noof_elements = m_group_sum_buffer.desc.Width / sizeof( unsigned );
@@ -326,6 +400,51 @@ struct CullInstancePass
                 in_cmd_list->ResourceBarrier( 1, &b );
             };
 
+#ifdef GR_WORKGRAPH
+        auto wg_dispatch_kill_instance_pass = [in_num_inst, in_cmd_list, this, in_num_meshes, in_vp_no_transpose](
+            auto in_inst_buffer,
+            auto out_is_inst_alive_buffer,
+            auto out_command_buffer ){
+
+            in_cmd_list->SetComputeRootSignature(spRS.Get());
+
+            in_cmd_list->SetComputeRoot32BitConstant( 0, in_num_inst, 0 );
+            in_cmd_list->SetComputeRoot32BitConstant( 0, 0, 1 );
+            in_cmd_list->SetComputeRoot32BitConstant( 0, 0, 2 );
+            in_cmd_list->SetComputeRoot32BitConstant( 0, 0, 3 );
+            DirectX::XMFLOAT4X4 vp_data;
+            DirectX::XMStoreFloat4x4( &vp_data, XMMatrixTranspose( in_vp_no_transpose ) );
+            in_cmd_list->SetComputeRoot32BitConstants( 0, 16, &vp_data, 4 );
+            in_cmd_list->SetComputeRoot32BitConstant( 0, in_num_meshes, 20 );
+
+            in_cmd_list->SetComputeRootShaderResourceView(1, in_inst_buffer);
+            in_cmd_list->SetComputeRootUnorderedAccessView(2, out_is_inst_alive_buffer);
+            in_cmd_list->SetComputeRootUnorderedAccessView(3, out_command_buffer);
+
+            D3D12_SET_PROGRAM_DESC setProg = {};
+            setProg.Type = D3D12_PROGRAM_TYPE_WORK_GRAPH;
+            setProg.WorkGraph.ProgramIdentifier = WG.hWorkGraph;
+            setProg.WorkGraph.Flags = D3D12_SET_WORK_GRAPH_FLAG_INITIALIZE;
+            setProg.WorkGraph.BackingMemory = WG.BackingMemory;
+            in_cmd_list->SetProgram(&setProg);
+
+            // Prepare input data for the graph
+            struct entryRecord {
+                UINT pad;
+            };
+
+            entryRecord inputData = {};
+
+            // Dispatch the graph
+            D3D12_DISPATCH_GRAPH_DESC DSDesc = {};
+            DSDesc.Mode = D3D12_DISPATCH_MODE_NODE_CPU_INPUT;
+            DSDesc.NodeCPUInput.EntrypointIndex = 0;
+            DSDesc.NodeCPUInput.NumRecords = 1;
+            DSDesc.NodeCPUInput.RecordStrideInBytes = sizeof(entryRecord);
+            DSDesc.NodeCPUInput.pRecords = &inputData;
+            in_cmd_list->DispatchGraph(&DSDesc);
+        };
+#endif            
         
         fill_clear_buffer_cb( m_clear_buffer_cb );
         fill_cb( m_cb );
@@ -347,10 +466,18 @@ struct CullInstancePass
         in_state_tracker.Transition( m_is_inst_alive_buffer.buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
         in_state_tracker.Transition( out_command_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
         in_state_tracker.FlushBarriers( in_cmd_list );
+
+#ifdef GR_WORKGRAPH
+        wg_dispatch_kill_instance_pass(
+            in_inst_buffer->GetGPUVirtualAddress(),
+            m_is_inst_alive_buffer.buffer->GetGPUVirtualAddress(),
+            out_command_buffer->GetGPUVirtualAddress() );
+#else
         dispatch_kill_instance_pass(
             in_inst_buffer->GetGPUVirtualAddress(),
             m_is_inst_alive_buffer.buffer->GetGPUVirtualAddress(),
             out_command_buffer->GetGPUVirtualAddress() );
+#endif
 
         in_state_tracker.Transition( m_is_inst_alive_buffer.buffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
         in_state_tracker.Transition( m_group_sum_buffer.buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );

@@ -14,9 +14,9 @@ cbuffer Constants : register(b0)
 bool isInFrustum(float4 clipPos)
 {
     clipPos /= clipPos.w;
-    bool inside = (clipPos.x >= -1.1) && (clipPos.x <= 1.1) &&
-                  (clipPos.y >= -1.1) && (clipPos.y <= 1.1) &&
-                  (clipPos.z >= 0) && (clipPos.z <= 1);
+    bool inside = (clipPos.x >= -1.5) && (clipPos.x <= 1.5) &&
+                  (clipPos.y >= -1.5) && (clipPos.y <= 1.5) &&
+                  (clipPos.z >= -1) && (clipPos.z <= 1);
     return inside;
 }
 

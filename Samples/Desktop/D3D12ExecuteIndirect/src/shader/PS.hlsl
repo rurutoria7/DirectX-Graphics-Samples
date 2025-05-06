@@ -14,6 +14,8 @@ struct PSInput
     float2 uv : TEXCOORD;
 };
 
+Texture2D<float4> myTexture[] : register(t0);
+
 float4 main(PSInput input) : SV_TARGET
 {
     if (textureID.x < 0)
@@ -21,8 +23,7 @@ float4 main(PSInput input) : SV_TARGET
         return diffuseColor;
     }
     
-    Texture2D<float4> myTexture = ResourceDescriptorHeap[textureID.x];
-    float4 color = myTexture.Sample(g_sampler, input.uv);
+    float4 color = myTexture[textureID.x].Sample(g_sampler, input.uv);
     float4 diffuse = diffuseColor * color;
     return diffuse;
 }

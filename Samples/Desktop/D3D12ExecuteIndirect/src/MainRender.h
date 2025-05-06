@@ -10,7 +10,7 @@
 //*********************************************************
 
 #pragma once
-
+#include "defines.h"
 #include "DXSample.h"
 #include "MyMesh.h"
 #include "render_pass/GraphicsPass.h"
@@ -130,7 +130,7 @@ private:
     // Pipeline objects.
     D3D12_RECT m_cullingScissorRect;
     ComPtr<IDXGISwapChain3> m_swapChain;
-    ComPtr<ID3D12Device2> m_device;
+    ComPtr<ID3D12Device14> m_device;
     ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
     ComPtr<ID3D12CommandAllocator> m_computeCommandAllocators[FrameCount];
@@ -155,7 +155,7 @@ private:
     ComPtr<ID3D12Resource> m_upload_buffer[MAX_NUM_TEXTURES];
     ComPtr<ID3D12Resource> m_diffuseTexture[MAX_NUM_TEXTURES];
     ComPtr<ID3D12GraphicsCommandList6> m_commandList;
-    ComPtr<ID3D12GraphicsCommandList> m_computeCommandList;
+    ComPtr<ID3D12GraphicsCommandList10> m_computeCommandList;
     ComPtr<ID3D12Resource> m_default_command_buffer;
     ComPtr<ID3D12Resource> m_upload_instanceBuffer;
     ComPtr<ID3D12Resource> m_default_instance_buffer;

@@ -27,7 +27,7 @@
     <ClInclude Include="stdafx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="d3dx12.h">
+    <ClInclude Include="__old_d3dx12.h">
       <Filter>Header Files\Util</Filter>
     </ClInclude>
     <ClInclude Include="DXSample.h">
@@ -72,6 +72,9 @@
     <ClInclude Include="ResourceStateTracker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="defines.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -107,12 +110,14 @@
     <FxCompile Include="shader\VS.hlsl" />
     <FxCompile Include="shader\FrustumMS.hlsl" />
     <FxCompile Include="shader\DebugDrawPS.hlsl" />
-    <FxCompile Include="shader\CullTri.hlsl" />
     <FxCompile Include="shader\KillInstancesCS.hlsl" />
     <FxCompile Include="shader\ScanInstancesCS.hlsl" />
     <FxCompile Include="shader\CopyInstancesCS.hlsl" />
     <FxCompile Include="shader\ScanGroupsCS.hlsl" />
     <FxCompile Include="shader\ScanCommandsCS.hlsl" />
     <FxCompile Include="shader\ClearBufferCS.hlsl" />
+    <FxCompile Include="shader\KillInstancesCS_wg.hlsl" />
+    <FxCompile Include="shader\CullTri.hlsl" />
+    <FxCompile Include="shader\Dummy_wg.hlsl" />
   </ItemGroup>
 </Project>
