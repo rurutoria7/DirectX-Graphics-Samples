@@ -432,7 +432,7 @@ void MainRender::LoadAssets()
 
         // Create default buffer & copy data from upload buffer
         {
-            auto buffer_size = CullInstancePass<0>::get_padded_size( _instances.size() ) * sizeof( OWO::Instance );
+            auto buffer_size = CullInstancePass::get_padded_size( _instances.size() ) * sizeof( OWO::Instance );
 
             ThrowIfFailed( m_device->CreateCommittedResource(
                 &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
@@ -794,7 +794,7 @@ void MainRender::OnRender()
         XMMATRIX proj = m_mainCam.GetProjectionMatrix( FOV, m_aspectRatio / AspectRatioDivider, 1.0f, FarPlaneMainCam );
         auto mvp = XMMatrixMultiply( view, proj );
 
-        CullInstancePass<65536>::RecordDispatchParams params;
+        CullInstancePass::RecordDispatchParams params;
         params.cmd_list = m_computeCommandList.Get();
         params.inst_buffer = m_default_instance_buffer.Get();
         params.processed_inst_buffer = m_default_proccessed_instanceBuffer.Get();

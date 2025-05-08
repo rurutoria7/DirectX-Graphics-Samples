@@ -204,7 +204,7 @@ namespace OWO
 #ifdef DEV_LOAD_INSTANCE_BLOB
         auto generate_instance_data_blob = [&](const std::string& filepath) 
         {
-            const int kInstanceCount = CullInstancePass<0>::SCAN_BLOCK * CullInstancePass<0>::NUM_SCAN_BLOCK / 32;
+            const int kInstanceCount = CullInstancePass::SCAN_BLOCK * CullInstancePass::NUM_SCAN_BLOCK / 4;
             const float kAreaHalfSize = 200.0f;
             const float kAreaHeight = 50.0f;
 

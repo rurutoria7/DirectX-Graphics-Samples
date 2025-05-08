@@ -45,7 +45,6 @@ public:
 };
 #endif
 
-template<size_t MAX_NUM_MESHES>
 struct CullInstancePass
 {
     struct MyBuffer {

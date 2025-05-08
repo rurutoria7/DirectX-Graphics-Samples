@@ -50,7 +50,6 @@ public:
     void ExecuteGFXCommandList();
     void ResetComputeCommandList();
     void ExecuteComputeCommandList();
-    static constexpr UINT MAX_NUM_MESHES = (1 << 16);
 
 private:
     static const int MAX_NUM_TEXTURES = 1000;
@@ -124,7 +123,7 @@ private:
     SimpleCamera m_debugCam;
     GraphicsPass<MAX_NUM_TEXTURES> m_graphicsPass;
     ProcessCommandPass m_processCommandPass;
-    CullInstancePass<MAX_NUM_MESHES> m_cullInstancePass;
+    CullInstancePass m_cullInstancePass;
     OWO::FBXLoader m_fbxLoader;
     FrustumVisualizer m_frustumDraw;
     ResourceStateTracker m_stateTracker;

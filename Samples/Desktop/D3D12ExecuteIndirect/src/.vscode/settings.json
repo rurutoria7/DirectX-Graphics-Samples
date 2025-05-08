@@ -4,6 +4,7 @@
         "xstring": "cpp",
         "xiosbase": "cpp",
         "*.impl": "cpp",
-        "iosfwd": "cpp"
+        "iosfwd": "cpp",
+        "random": "cpp"
     }
 }
