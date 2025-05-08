@@ -23,6 +23,8 @@
 #include "render_pass/CullInstancePass.h"
 #include "ResourceStateTracker.h"
 #include <thread>
+#include <windows.h>
+#include <string>
 
 using namespace DirectX;
 
@@ -66,7 +68,14 @@ private:
     static constexpr const float FarPlaneDebugCam = 2000.0f;                    // Far plane for the debug camera.
     static constexpr const float FovDebugCam = XM_PI / 3;                        // Field of view for the debug camera.
 
-    std::string MODEL_DIR_PATH = "D:\\LocalFiles\\2024-Winter\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\";
+    inline std::string GetExecutableDir() {
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        std::string path(buffer);
+        return path.substr(0, path.find_last_of("\\/"));
+    }
+
+    std::string MODEL_DIR_PATH = GetExecutableDir() + "\\..\\..\\..\\Assets\\";
     std::string MODEL_FILE_NAME = "four_mat.obj";
     float FOV = XM_PI / 5;
 
