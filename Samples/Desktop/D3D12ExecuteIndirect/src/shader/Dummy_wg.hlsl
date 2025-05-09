@@ -61,7 +61,7 @@ void firstNode(
 
 [Shader("node")]
 [NodeLaunch("broadcasting")]
-[NodeDispatchGrid(MAX_NOOF_INSTANCE/2,1,1)]
+[NodeDispatchGrid(MAX_NOOF_INSTANCES/NOOF_THREADS_KILL_INSTANCES,1,1)]
 [NumThreads(NOOF_THREADS, 1, 1)]
 void secondNode(
     DispatchNodeInputRecord<secondNodeInput> inputData,
