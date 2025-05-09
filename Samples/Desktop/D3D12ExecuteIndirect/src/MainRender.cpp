@@ -37,7 +37,6 @@ MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
     m_cullingScissorRect(),
     m_rtvDescriptorSize( 0 ),
     m_cbvSrvUavDescriptorSize( 0 ),
-    m_csRootConstants(),
     m_enableCulling( false ),
     m_fenceValues {},
     m_fenceEvent( nullptr ),
@@ -45,10 +44,6 @@ MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
 {
     m_constantBufferData.resize( MAX_NUM_MESHES * FrameCount );
 
-    m_csRootConstants.xOffset = TriangleHalfWidth;
-    m_csRootConstants.zOffset = TriangleDepth;
-    m_csRootConstants.cullOffset = CullingCutoff;
-    m_csRootConstants.commandCount = MAX_NUM_MESHES;
 
     float center = width / 2.0f;
     m_cullingScissorRect.left = static_cast<LONG>(center - (center * CullingCutoff));

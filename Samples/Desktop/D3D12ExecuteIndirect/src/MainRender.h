@@ -124,7 +124,6 @@ private:
     std::vector<SceneConstantBuffer> m_constantBufferData;
     UINT8* m_pCbvDataBegin;
 
-    CSRootConstants m_csRootConstants;    // Constants for the compute shader.
     bool m_enableCulling;                // Toggle whether the compute shader pre-processes the indirect commands.
 
     // Pipeline objects.
