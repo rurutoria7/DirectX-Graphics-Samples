@@ -1,19 +1,14 @@
 #include "Common.hlsl"
+#include "CullInstancePass_common.hlsl"
+
 
 GlobalRootSignature globalRS = { 
-    "RootConstants(num32BitConstants=21, b0), SRV(t0), UAV(u0), UAV(u1)"
+    ROOT_SIG_B1 "SRV(t0), UAV(u0), UAV(u1)"
 };
 
 StructuredBuffer<Instance> inInstances : register(t0);
 RWStructuredBuffer<my_uint> outInstances : register(u0);
 RWStructuredBuffer<IndirectCommand> outCommands : register(u1);
-
-cbuffer Constants : register(b0)
-{
-    int4 numInstance;
-    float4x4 vp;
-    uint numMeshes;
-};
 
 bool isInFrustum(float4 clipPos)
 {
@@ -33,7 +28,7 @@ struct entryRecord
 
 struct secondNodeInput
 {
-    uint gridSize;
+    uint gridSize : SV_DispatchGrid;
 };
 
 struct thirdNodeInput
@@ -55,7 +50,7 @@ void firstNode(
     uint dispatchThreadID : SV_DispatchThreadID)
 {
         GroupNodeOutputRecords<secondNodeInput> outRecs = secondNode.GetGroupNodeOutputRecords(1);
-        outRecs[0].gridSize = numInstance.x / NOOF_THREADS + 1;
+        outRecs[0].gridSize = noof_instances / NOOF_THREADS + 1;
         outRecs.OutputComplete();
 }
 
@@ -64,36 +59,28 @@ void firstNode(
 [NodeDispatchGrid(MAX_NOOF_INSTANCES/NOOF_THREADS_KILL_INSTANCES,1,1)]
 [NumThreads(NOOF_THREADS, 1, 1)]
 void secondNode(
-    DispatchNodeInputRecord<secondNodeInput> inputData,
+    RWDispatchNodeInputRecord<secondNodeInput> inputData,
     uint threadIndex : SV_GroupIndex,
     uint dispatchThreadID : SV_DispatchThreadID)
 {
-    if (dispatchThreadID.x == 0)
-    {
-        for (uint meshId = 0; meshId < numMeshes; meshId++)
-        {
-            outCommands[meshId].draw_InstanceCount = 0;
-        }
-    }
-    DeviceMemoryBarrierWithGroupSync();
 
     uint idx = dispatchThreadID.x;
-    if (idx >= (uint) numInstance.x)
-        return;
-    
-    Instance inst = inInstances[idx];
-    uint meshId = inst.materialIndex.x; // 使用 materialIndex.x 作為 mesh_id
-    
-    float3 pos = inst.world[3].xyz;
-    float4 clipPos = mul(float4(pos, 1.0f), vp);
+    if (idx < (uint) noof_instances)
+    {
+        Instance inst = inInstances[idx];
+        uint meshId = inst.materialIndex.x; // 使用 materialIndex.x 作為 mesh_id
+        
+        float3 pos = inst.world[3].xyz;
+        float4 clipPos = mul(float4(pos, 1.0f), vp);
 
-    if (isInFrustum(clipPos))
-    {
-        outInstances[idx].x = 1;        
-        InterlockedAdd(outCommands[meshId].draw_InstanceCount, 1);
-    }
-    else
-    {
-        outInstances[idx].x = 0;
+        if (isInFrustum(clipPos))
+        {
+            outInstances[idx].x = 1;        
+            InterlockedAdd(outCommands[meshId].draw_InstanceCount, 1);
+        }
+        else
+        {
+            outInstances[idx].x = 0;
+        }
     }
 }

@@ -66,4 +66,6 @@ void calcInstanceOffsets(uint3 threadID : SV_DispatchThreadID, uint3 groupThread
 
 	inoutCommands[2 * tID].draw_StartInstanceLocation = temp[2 * tID];
 	inoutCommands[2 * tID + 1].draw_StartInstanceLocation = temp[2 * tID + 1];
+
+	DeviceMemoryBarrierWithGroupSync();
 }

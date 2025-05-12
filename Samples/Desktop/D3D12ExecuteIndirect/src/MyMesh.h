@@ -204,35 +204,47 @@ namespace OWO
 #ifdef DEV_LOAD_INSTANCE_BLOB
         auto generate_instance_data_blob = [&](const std::string& filepath) 
         {
-            const int kInstanceCount = (1 << 16) / 4;
-            const float kAreaHalfSize = 200.0f;
-            const float kAreaHeight = 50.0f;
+            auto get_instance_count = [&](int mesh_id) -> int
+            {
+                if (mesh_id == 3) {
+                    return 60000;
+                } else {
+                    return 0;
+                }
+            };
+            const float kAreaHalfSize = 100.0f;
+            const float kAreaHeight = 100.0f;
 
-            // Make sure to regenerate file first
-            std::filesystem::remove(filepath);
-
-            std::ofstream file(filepath, std::ios::binary);
+            std::ofstream file(filepath, std::ios::binary | std::ios::trunc);
             if (!file.is_open()) {
                 std::cerr << "ERROR: Failed to create instance data file: " << filepath << std::endl;
                 return;
             }
 
             for (int mesh_id = 0; mesh_id < meshes.size(); mesh_id++) {
+
                 std::mt19937 rng(mesh_id);
                 std::uniform_real_distribution<float> dist(-kAreaHalfSize, kAreaHalfSize);
                 std::uniform_real_distribution<float> dist_height(0, kAreaHeight);
                 std::uniform_real_distribution<float> rot_dist(0, DirectX::XM_2PI);
 
-                int count = kInstanceCount;
+                int count = get_instance_count(mesh_id);
+
                 file.write(reinterpret_cast<char*>(&count), sizeof(int));
 
                 for (int i = 0; i < count; i++) {
-                    float offset_x = dist(rng);
-                    float offset_y = dist_height(rng);
-                    float offset_z = dist(rng);
-                    float rot_x = rot_dist(rng);
-                    float rot_y = rot_dist(rng);
-                    float rot_z = rot_dist(rng);
+                    float offset_x = i % 100 * 2;
+                    float offset_y = mesh_id;
+                    float offset_z = i / 100 * 3;
+                    float rot_x = 0;
+                    float rot_y = 0;
+                    float rot_z = 0;
+                    // float offset_x = dist(rng);
+                    // float offset_y = dist_height(rng);
+                    // float offset_z = dist(rng);
+                    // float rot_x = rot_dist(rng);
+                    // float rot_y = rot_dist(rng);
+                    // float rot_z = rot_dist(rng);
                     
                     file.write(reinterpret_cast<char*>(&offset_x), sizeof(float));
                     file.write(reinterpret_cast<char*>(&offset_y), sizeof(float));
@@ -333,16 +345,8 @@ namespace OWO
             file.close();
         };
 
-
-        // Generate instance data file if it doesn't exist
         std::string instanceDataPath = filepath + ".instances";
-        std::ifstream checkFile(instanceDataPath, std::ios::binary);
-        if (1 && !checkFile.good()) {
-            generate_instance_data_blob(instanceDataPath);
-        }
-        checkFile.close();
-
-        // Load instance data
+        generate_instance_data_blob(instanceDataPath);
         load_instance_data_blob(instanceDataPath);
 
         // Flatten

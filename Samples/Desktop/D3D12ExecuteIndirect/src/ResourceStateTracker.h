@@ -9,7 +9,7 @@ class ResourceStateTracker
 {
 public:
     void TrackResourceState(ID3D12Resource* resource, D3D12_RESOURCE_STATES state);
-    void Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES newState);
+    void Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES newState, bool should_insert_uav_barrier);
     void FlushBarriers(ID3D12GraphicsCommandList* cmdList);
     void Reset();
 
@@ -65,7 +65,7 @@ inline void ResourceStateTracker::TrackResourceState(ID3D12Resource* resource, D
     }
 }
 
-inline void ResourceStateTracker::Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES newState)
+inline void ResourceStateTracker::Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES newState, bool should_insert_uav_barrier = true)
 {
     if (m_TrackedResources.find(resource) == m_TrackedResources.end())
     {
@@ -94,6 +94,15 @@ inline void ResourceStateTracker::Transition(ID3D12Resource* resource, D3D12_RES
 
         m_PendingBarriers.push_back(barrier);
         entry.currentState = newState;
+    }
+    else if (newState == D3D12_RESOURCE_STATE_UNORDERED_ACCESS && should_insert_uav_barrier)
+    {
+        D3D12_RESOURCE_BARRIER barrier = {};
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+        barrier.UAV.pResource = resource;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+
+        m_PendingBarriers.push_back(barrier);
     }
 }
 
