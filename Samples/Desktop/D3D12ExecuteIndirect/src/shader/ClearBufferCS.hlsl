@@ -41,4 +41,6 @@ void main
         command_buffer[tID].draw_InstanceCount = 0;
         command_buffer[tID].draw_StartInstanceLocation = 0;
     }
+
+    DeviceMemoryBarrierWithGroupSync();
 }
