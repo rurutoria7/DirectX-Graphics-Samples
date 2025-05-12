@@ -20,7 +20,7 @@
 
 #include "render_pass/GraphicsPass.h"
 
-// #define _DEBUG
+#define _DEBUG
 
 extern "C"
 {
