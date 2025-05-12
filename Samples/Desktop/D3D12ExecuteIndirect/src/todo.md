@@ -17,8 +17,6 @@
     - 1. [x] 傳入 OcclusionPassCB 到 dummy wg，並在 CullInstancePass.h 修改 Root argument 的傳入
     - 2. [x] 和 KillInstancePass 一樣，使用 OcclusionPassCB 的值來決定 dispatch 大小
 
-- [ ] 移植 shader 成第三個節點
-
 ### 如何在代碼層面移植到 work graph
 
 1. **資源綁定方式的差異**：

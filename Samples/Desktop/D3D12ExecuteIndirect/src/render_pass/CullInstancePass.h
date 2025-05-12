@@ -333,7 +333,9 @@ struct CullInstancePass
             auto out_is_inst_alive_buffer,
             auto out_command_buffer,
             auto out_group_sum_buffer,
-            auto out_scanned_instance_predicates ){
+            auto out_scanned_instance_predicates,
+            auto out_proccessed_inst_buffer,
+            auto out_scanned_group_sum_buffer ){
 
             in_cmd_list->SetComputeRootSignature(spRS.Get());
 
@@ -343,7 +345,9 @@ struct CullInstancePass
             in_cmd_list->SetComputeRootUnorderedAccessView(3, out_command_buffer);
             in_cmd_list->SetComputeRootUnorderedAccessView(4, out_group_sum_buffer);
             in_cmd_list->SetComputeRootUnorderedAccessView(5, out_scanned_instance_predicates);
-
+            in_cmd_list->SetComputeRootUnorderedAccessView(6, out_proccessed_inst_buffer);
+            in_cmd_list->SetComputeRootUnorderedAccessView(7, out_scanned_group_sum_buffer);
+            
             D3D12_SET_PROGRAM_DESC setProg = {};
             setProg.Type = D3D12_PROGRAM_TYPE_WORK_GRAPH;
             setProg.WorkGraph.ProgramIdentifier = WG.hWorkGraph;
@@ -389,6 +393,7 @@ struct CullInstancePass
         in_state_tracker.Transition( out_command_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, true);
         in_state_tracker.Transition( m_group_sum_buffer.buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
         in_state_tracker.Transition( m_inst_newpos_buffer.buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
+        in_state_tracker.Transition( out_proccessed_inst_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
         in_state_tracker.FlushBarriers( in_cmd_list );
 
         wg_dispatch_kill_instance_pass(
@@ -396,7 +401,10 @@ struct CullInstancePass
             m_is_inst_alive_buffer.buffer->GetGPUVirtualAddress(),
             out_command_buffer->GetGPUVirtualAddress(),
             m_group_sum_buffer.buffer->GetGPUVirtualAddress(),
-            m_inst_newpos_buffer.buffer->GetGPUVirtualAddress() );
+            m_inst_newpos_buffer.buffer->GetGPUVirtualAddress(), 
+            out_proccessed_inst_buffer->GetGPUVirtualAddress(),
+            m_scanned_group_sum_buffer.buffer->GetGPUVirtualAddress()
+        );
 #else
         in_state_tracker.Transition( in_inst_buffer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
         in_state_tracker.Transition( m_is_inst_alive_buffer.buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
@@ -416,7 +424,6 @@ struct CullInstancePass
             m_is_inst_alive_buffer.buffer->GetGPUVirtualAddress(),
             m_inst_newpos_buffer.buffer->GetGPUVirtualAddress(),
             m_group_sum_buffer.buffer->GetGPUVirtualAddress() );
-#endif
 
         in_state_tracker.Transition( m_scanned_group_sum_buffer.buffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
         in_state_tracker.Transition( m_group_sum_buffer.buffer.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
@@ -439,5 +446,6 @@ struct CullInstancePass
         in_state_tracker.Transition( out_command_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, true);
         in_state_tracker.FlushBarriers( in_cmd_list );
         dispatch_scan_command_pass( out_command_buffer->GetGPUVirtualAddress() );
+#endif
     }
 };
