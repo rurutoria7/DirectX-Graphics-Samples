@@ -206,14 +206,10 @@ namespace OWO
         {
             auto get_instance_count = [&](int mesh_id) -> int
             {
-                if (mesh_id == 3) {
-                    return 60000;
-                } else {
-                    return 0;
-                }
+                return MAX_NOOF_INSTANCES / 4;
             };
-            const float kAreaHalfSize = 100.0f;
-            const float kAreaHeight = 100.0f;
+            const float kAreaHalfSize = 200.0f;
+            const float kAreaHeight = 50.0f;
 
             std::ofstream file(filepath, std::ios::binary | std::ios::trunc);
             if (!file.is_open()) {
@@ -233,18 +229,12 @@ namespace OWO
                 file.write(reinterpret_cast<char*>(&count), sizeof(int));
 
                 for (int i = 0; i < count; i++) {
-                    float offset_x = i % 100 * 2;
-                    float offset_y = mesh_id;
-                    float offset_z = i / 100 * 3;
-                    float rot_x = 0;
-                    float rot_y = 0;
-                    float rot_z = 0;
-                    // float offset_x = dist(rng);
-                    // float offset_y = dist_height(rng);
-                    // float offset_z = dist(rng);
-                    // float rot_x = rot_dist(rng);
-                    // float rot_y = rot_dist(rng);
-                    // float rot_z = rot_dist(rng);
+                    float offset_x = dist(rng);
+                    float offset_y = dist_height(rng);
+                    float offset_z = dist(rng);
+                    float rot_x = rot_dist(rng);
+                    float rot_y = rot_dist(rng);
+                    float rot_z = rot_dist(rng);
                     
                     file.write(reinterpret_cast<char*>(&offset_x), sizeof(float));
                     file.write(reinterpret_cast<char*>(&offset_y), sizeof(float));
