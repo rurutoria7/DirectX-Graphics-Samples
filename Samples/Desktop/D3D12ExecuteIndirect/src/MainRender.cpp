@@ -20,7 +20,7 @@
 
 #include "render_pass/GraphicsPass.h"
 
-// #define _DEBUG
+#define _DEBUG
 
 extern "C"
 {
@@ -37,18 +37,12 @@ MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
     m_cullingScissorRect(),
     m_rtvDescriptorSize( 0 ),
     m_cbvSrvUavDescriptorSize( 0 ),
-    m_csRootConstants(),
     m_enableCulling( false ),
     m_fenceValues {},
     m_fenceEvent( nullptr ),
     m_pCbvDataBegin( nullptr )
 {
-    m_constantBufferData.resize( MAX_NUM_MESHES * FrameCount );
-
-    m_csRootConstants.xOffset = TriangleHalfWidth;
-    m_csRootConstants.zOffset = TriangleDepth;
-    m_csRootConstants.cullOffset = CullingCutoff;
-    m_csRootConstants.commandCount = MAX_NUM_MESHES;
+    m_constantBufferData.resize( MAX_NOOF_MESHES * FrameCount );
 
     float center = width / 2.0f;
     m_cullingScissorRect.left = static_cast<LONG>(center - (center * CullingCutoff));
@@ -265,7 +259,7 @@ void MainRender::LoadAssets()
             ...
 
         */
-        const UINT constantBufferDataSize = m_fbxLoader.NumMeshes() * sizeof( SceneConstantBuffer );
+        const UINT constantBufferDataSize = MAX_NOOF_MESHES * sizeof( SceneConstantBuffer );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -409,7 +403,7 @@ void MainRender::LoadAssets()
     // Create Instance buffer.
     {
         auto _instances = m_fbxLoader.GetInstances();
-        const UINT instanceBufferSize = _instances.size() * sizeof( OWO::Instance );
+        const UINT instanceBufferSize = CullInstancePass::get_padded_size(_instances.size()) * sizeof( OWO::Instance );
 
         // Create upload buffer & upload data from main memory
         {
@@ -427,7 +421,7 @@ void MainRender::LoadAssets()
             UINT8* pInstanceDataBegin;
             CD3DX12_RANGE readRange( 0, 0 );
             ThrowIfFailed( m_upload_instanceBuffer->Map( 0, &readRange, reinterpret_cast<void**>(&pInstanceDataBegin) ) );
-            memcpy( pInstanceDataBegin, &_instances[0], instanceBufferSize );
+            memcpy( pInstanceDataBegin, &_instances[0], _instances.size() * sizeof( OWO::Instance ) );
         }
 
         // Create default buffer & copy data from upload buffer
@@ -562,7 +556,7 @@ void MainRender::LoadAssets()
     // Create the Command buffer.
     ComPtr<ID3D12Resource> upload_command_buffer;
     {
-        const UINT commandBufferDataSize = MAX_NUM_MESHES * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = MAX_NOOF_MESHES * sizeof( IndirectCommand );
 
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_UPLOAD ),
@@ -585,7 +579,7 @@ void MainRender::LoadAssets()
         m_stateTracker.TrackResourceState( m_default_command_buffer.Get(), D3D12_RESOURCE_STATE_COMMON );
 
         // Fill the command buffer data in main memory
-        std::vector<IndirectCommand> commandsBufferData( MAX_NUM_MESHES );
+        std::vector<IndirectCommand> commandsBufferData( MAX_NOOF_MESHES );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
         {
             IndirectCommand cmd;
@@ -614,7 +608,7 @@ void MainRender::LoadAssets()
 
     // Create the Proccessed command buffer
     {
-        const UINT commandBufferDataSize = MAX_NUM_MESHES * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = MAX_NOOF_MESHES * sizeof( IndirectCommand );
 
         auto rd = CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS );
         ThrowIfFailed( m_device->CreateCommittedResource(
@@ -631,7 +625,7 @@ void MainRender::LoadAssets()
     // Create no culling command buffer
     ComPtr<ID3D12Resource> upload_tmp_buffer;
     {
-        const UINT commandBufferDataSize = MAX_NUM_MESHES * sizeof( IndirectCommand );
+        const UINT commandBufferDataSize = MAX_NOOF_MESHES * sizeof( IndirectCommand );
         auto rd = CD3DX12_RESOURCE_DESC::Buffer( commandBufferDataSize );
         ThrowIfFailed( m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES( D3D12_HEAP_TYPE_DEFAULT ),
@@ -653,7 +647,7 @@ void MainRender::LoadAssets()
         NAME_D3D12_OBJECT( upload_tmp_buffer );
         m_stateTracker.TrackResourceState( upload_tmp_buffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ );
 
-        std::vector<IndirectCommand> commandsBufferData( MAX_NUM_MESHES );
+        std::vector<IndirectCommand> commandsBufferData( MAX_NOOF_MESHES );
         for ( int i = 0; i < m_fbxLoader.GetMeshes().size(); i++ )
         {
             IndirectCommand cmd;

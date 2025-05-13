@@ -1,27 +1,15 @@
 #include"Common.hlsl"
-
-cbuffer OcclusionPassCB : register(b1)
-{
-	float4		RTSize;
-	float		MaxMipLevel;
-	float		ActivateCulling;
-	float		MipBias;
-	unsigned int NoofInstances;
-	unsigned int NoofInstancesPowOf2;
-	unsigned int NoofDrawcalls;
-	unsigned int NoofGroups;
-	float		pad;
-};
+#include"CullInstancePass_common.hlsl"
 
 RWStructuredBuffer<IndirectCommand> inoutCommands : register(u0);
 
-#define NOOF_THREADS 512
+#define NOOF_THREADS NOOF_THREADS_SCAN_COMMANDS
 
 groupshared uint temp[NOOF_THREADS * 2];
 
 [numthreads(NOOF_THREADS, 1, 1)]
 [RootSignature(
-    "RootConstants(num32BitConstants=12, b1), "
+    ROOT_SIG_B1
     "UAV(u0)"
 )]
 void calcInstanceOffsets(uint3 threadID : SV_DispatchThreadID, uint3 groupThreadID : SV_GroupThreadID, uint3 groupID : SV_GroupID)
@@ -31,12 +19,13 @@ void calcInstanceOffsets(uint3 threadID : SV_DispatchThreadID, uint3 groupThread
     const int NoofElements = 2 * NOOF_THREADS;
 
 	int offset = 1;
-	temp[2 * tID] = 2*tID >= NoofDrawcalls ? 0 :  inoutCommands[ 2 * tID ].draw_InstanceCount;			// load input into shared memory
-	temp[2 * tID + 1] = 2*tID + 1 >= NoofDrawcalls ? 0 : inoutCommands[ 2 * tID + 1 ].draw_InstanceCount;
+	temp[2 * tID] = inoutCommands[2 * tID].draw_InstanceCount;
+	temp[2 * tID + 1] = inoutCommands[2 * tID + 1].draw_InstanceCount;
+	// temp[2 * tID] = 2*tID >= noof_drawcalls ? 0 :  inoutCommands[ 2 * tID ].draw_InstanceCount;			// load input into shared memory
+	// temp[2 * tID + 1] = 2*tID + 1 >= noof_drawcalls ? 0 : inoutCommands[ 2 * tID + 1 ].draw_InstanceCount;
 
 	int d;
 
-	//perform reduction
 	for (d = NoofElements >> 1; d > 0; d >>= 1)
 	{
 		GroupMemoryBarrierWithGroupSync();
@@ -75,12 +64,8 @@ void calcInstanceOffsets(uint3 threadID : SV_DispatchThreadID, uint3 groupThread
 
 	GroupMemoryBarrierWithGroupSync();
 
-    if (2 * tID < NoofDrawcalls)    
-    {
-        inoutCommands[2 * tID].draw_StartInstanceLocation = temp[2 * tID];
-    }
-    if (2 * tID + 1 < NoofDrawcalls)
-    {
-        inoutCommands[2 * tID + 1].draw_StartInstanceLocation = temp[2 * tID + 1];
-    }
+	inoutCommands[2 * tID].draw_StartInstanceLocation = temp[2 * tID];
+	inoutCommands[2 * tID + 1].draw_StartInstanceLocation = temp[2 * tID + 1];
+
+	DeviceMemoryBarrierWithGroupSync();
 }

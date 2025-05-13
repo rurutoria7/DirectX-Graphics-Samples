@@ -1,30 +1,16 @@
-
 #include"Common.hlsl"
-
-cbuffer OcclusionPassCB : register(b1)
-{
-    float4 RTSize;
-    float MaxMipLevel;
-    float ActivateCulling;
-    float MipBias;
-    unsigned int NoofInstances;
-    unsigned int NoofInstancesPowOf2;
-    unsigned int NoofDrawcalls;
-    unsigned int NoofGroups;
-    float pad;
-};
+#include"CullInstancePass_common.hlsl"
 
 StructuredBuffer<my_uint> instancePredicatesIn : register(t0);
 RWStructuredBuffer<my_uint> groupSumArray : register(u0);
 RWStructuredBuffer<my_uint> scannedInstancePredicates : register(u1);
 
-#define NOOF_THREADS (INSTANCE_COMPACTION_SCAN_BLOCK / 2)
-
+#define NOOF_THREADS NOOF_THREADS_SCAN_INSTANCES
 
 groupshared uint temp[NOOF_THREADS * 2];
 
 [RootSignature(
-    "RootConstants(num32BitConstants=12, b1), "
+    ROOT_SIG_B1
     "SRV(t0), "
     "UAV(u0), "
     "UAV(u1)"

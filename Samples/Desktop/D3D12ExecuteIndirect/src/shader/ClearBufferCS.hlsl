@@ -1,14 +1,5 @@
 #include "Common.hlsl"
-
-cbuffer ClearBufferCB : register(b1)
-{
-    uint scanned_group_sum_buffer_noof_elements;
-    uint group_sum_buffer_noof_elements;
-    uint inst_newpos_buffer_noof_elements;
-    uint is_inst_alive_buffer_noof_elements;
-    uint command_buffer_noof_elements;
-    uint3 padding;
-}
+#include "CullInstancePass_common.hlsl"
 
 RWStructuredBuffer<my_uint> is_inst_alive_buffer : register(u0);       // noof instance
 RWStructuredBuffer<my_uint> scanned_group_sum_buffer : register(u1);   // noof instance
@@ -16,11 +7,11 @@ RWStructuredBuffer<my_uint> inst_newpos_buffer : register(u2);         // noof i
 RWStructuredBuffer<my_uint> group_sum_buffer : register(u3);           // noof instance
 RWStructuredBuffer<IndirectCommand> command_buffer : register(u4);
 
-#define NOOF_THREADS 64
+#define NOOF_THREADS NOOF_THREADS_CLEAR_BUFFER
 
 [numthreads(NOOF_THREADS, 1, 1)]
 [RootSignature(
-    "RootConstants(num32BitConstants=2, b1), "
+    ROOT_SIG_B1
     "UAV(u0), "
     "UAV(u1), "
     "UAV(u2), "
@@ -37,22 +28,19 @@ void main
 {
     int tID = threadID.x;
 
-    if (tID < scanned_group_sum_buffer_noof_elements)
-        scanned_group_sum_buffer[tID].x = 0;
-
-    if (tID < group_sum_buffer_noof_elements)
-        group_sum_buffer[tID].x = 0;
-
-    if (tID < inst_newpos_buffer_noof_elements)
-        inst_newpos_buffer[tID].x = 0;
-
-    if (tID < is_inst_alive_buffer_noof_elements)
-        is_inst_alive_buffer[tID].x = 0;
-
-    if (tID < command_buffer_noof_elements)
+    if (tID < noof_instances_pow_of_2)
     {
-        //command_buffer[tID].draw_InstanceCount = 0;
-        // [TOODOO] don't know why add this line will lead to rendering nothing while culling disabled
+        scanned_group_sum_buffer[tID].x = 0;
+        group_sum_buffer[tID].x = 0;
+        inst_newpos_buffer[tID].x = 0;
+        is_inst_alive_buffer[tID].x = 0;
+    }
+
+    if (tID < noof_drawcalls)
+    {
+        command_buffer[tID].draw_InstanceCount = 0;
         command_buffer[tID].draw_StartInstanceLocation = 0;
     }
+
+    DeviceMemoryBarrierWithGroupSync();
 }

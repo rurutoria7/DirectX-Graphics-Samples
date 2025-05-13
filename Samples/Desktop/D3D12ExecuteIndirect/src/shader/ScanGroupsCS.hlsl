@@ -1,28 +1,16 @@
 #include"Common.hlsl"
+#include"CullInstancePass_common.hlsl"
 
-cbuffer OcclusionPassCB : register(b1)
-{
-    float4 RTSize;
-    float MaxMipLevel;
-    float ActivateCulling;
-    float MipBias;
-    unsigned int NoofInstances;
-    unsigned int NoofInstancesPowOf2;
-    unsigned int NoofDrawcalls;
-    unsigned int NoofGroups;
-    float pad;
-};
+#define NOOF_THREADS NOOF_THREADS_SCAN_GROUPS
 
-#define NOOF_THREADS (INSTANCE_COMPACTION_NOOF_BLOCK / 2)
-
-groupshared uint temp[INSTANCE_COMPACTION_NOOF_BLOCK];
+groupshared uint temp[NOOF_THREADS * 2];
 
 StructuredBuffer<my_uint> groupSumArrayIn : register(t0);
 RWStructuredBuffer<my_uint> groupSumArrayOut : register(u0);
 
 [numthreads(NOOF_THREADS, 1, 1)]
 [RootSignature(
-    "RootConstants(num32BitConstants=12, b1), "
+    ROOT_SIG_B1
     "SRV(t0), "
     "UAV(u0)"
 )]
@@ -30,7 +18,7 @@ void scanGroupSums(uint3 threadID : SV_DispatchThreadID, uint3 groupThreadID : S
 {
     int tID = threadID.x;
 
-    const int NoofElements = INSTANCE_COMPACTION_NOOF_BLOCK;
+    const int NoofElements = NOOF_THREADS * 2;
 
     int offset = 1;
     temp[2 * tID] = groupSumArrayIn[2 * tID].x;

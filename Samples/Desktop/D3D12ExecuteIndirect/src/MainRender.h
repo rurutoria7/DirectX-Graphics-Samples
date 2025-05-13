@@ -55,8 +55,8 @@ private:
     static const int MAX_NUM_TEXTURES = 1000;
 
     static const UINT FrameCount = 3;
-    static const UINT MaxMeshResourceCount = MAX_NUM_MESHES * FrameCount;
-    static const UINT CommandSizePerFrame = MAX_NUM_MESHES * sizeof( IndirectCommand );                // The size of the indirect commands to draw all of the triangles in a single frame.
+    static const UINT MaxMeshResourceCount = MAX_NOOF_MESHES * FrameCount;
+    static const UINT CommandSizePerFrame = MAX_NOOF_MESHES * sizeof( IndirectCommand );                // The size of the indirect commands to draw all of the triangles in a single frame.
     static const UINT CommandBufferCounterOffset;        // The offset of the UAV counter in the processed command buffer.
     static const UINT ComputeThreadBlockSize = 64;        // Should match the value in compute.hlsl.
     static constexpr const float TriangleHalfWidth = 0.05f;                // The x and y offsets used by the triangle vertices.
@@ -67,14 +67,7 @@ private:
     static constexpr const float FarPlaneDebugCam = 2000.0f;                    // Far plane for the debug camera.
     static constexpr const float FovDebugCam = XM_PI / 3;                        // Field of view for the debug camera.
 
-    inline std::string GetExecutableDir() {
-        char buffer[MAX_PATH];
-        GetModuleFileNameA(NULL, buffer, MAX_PATH);
-        std::string path(buffer);
-        return path.substr(0, path.find_last_of("\\/"));
-    }
-
-    std::string MODEL_DIR_PATH = GetExecutableDir() + "\\..\\..\\..\\Assets\\";
+    std::string MODEL_DIR_PATH = "D:\\LocalFiles\\2025-Spring\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\";
     std::string MODEL_FILE_NAME = "four_mat.obj";
     float FOV = XM_PI / 5;
 
@@ -132,7 +125,6 @@ private:
     std::vector<SceneConstantBuffer> m_constantBufferData;
     UINT8* m_pCbvDataBegin;
 
-    CSRootConstants m_csRootConstants;    // Constants for the compute shader.
     bool m_enableCulling;                // Toggle whether the compute shader pre-processes the indirect commands.
 
     // Pipeline objects.
