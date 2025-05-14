@@ -54,6 +54,12 @@ MainRender::MainRender( UINT width, UINT height, std::wstring name ) :
 
 void MainRender::OnInit()
 {
+    // 設置模型目錄路徑
+    WCHAR assetsPath[512];
+    GetAssetsPath(assetsPath, _countof(assetsPath));
+    std::wstring wAssetsPath(assetsPath);
+    MODEL_DIR_PATH = std::string(wAssetsPath.begin(), wAssetsPath.end()) + "..\\..\\..\\Assets\\";
+
     LoadPipeline();
     LoadAssets();
 

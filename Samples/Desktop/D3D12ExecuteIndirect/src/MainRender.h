@@ -65,7 +65,7 @@ private:
     static constexpr const float FarPlaneDebugCam = 2000.0f;                    // Far plane for the debug camera.
     static constexpr const float FovDebugCam = XM_PI / 3;                        // Field of view for the debug camera.
 
-    std::string MODEL_DIR_PATH = "D:\\LocalFiles\\2025-Spring\\D3D\\DirectX-Graphics-Samples\\Samples\\Desktop\\D3D12ExecuteIndirect\\src\\Assets\\";
+    std::string MODEL_DIR_PATH;  // 將在 OnInit 中設置
     std::string MODEL_FILE_NAME = "four_mat.obj";
     float FOV = XM_PI / 5;
 
