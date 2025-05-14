@@ -23,6 +23,8 @@
 #include "render_pass/CullInstancePass.h"
 #include "ResourceStateTracker.h"
 #include <thread>
+#include <windows.h>
+#include <string>
 
 using namespace DirectX;
 
