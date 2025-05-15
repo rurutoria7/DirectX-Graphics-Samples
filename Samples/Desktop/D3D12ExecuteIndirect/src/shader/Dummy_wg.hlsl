@@ -92,11 +92,7 @@ void secondNode(
         float3 pos = inst.world[3].xyz;
         float4 clipPos = mul(float4(pos, 1.0f), vp);
 
-#ifdef DEBUG_CULL_DETERMINISTIC
-        if (DEBUG_CULL_DETERMINISTIC(meshId, idx))
-#else
         if (isInFrustum(clipPos))
-#endif
         {
             outInstances[idx].x = 1;        
             InterlockedAdd(outCommands[meshId].draw_InstanceCount, 1);
