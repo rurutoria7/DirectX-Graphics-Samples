@@ -11,7 +11,6 @@
 #include <filesystem>
 #include "render_pass/CullInstancePass.h"
 
-#define DEV_LOAD_INSTANCE_BLOB
 #define MODEL_SCALE (1.0f)
 
 namespace OWO
@@ -229,13 +228,23 @@ namespace OWO
                 file.write(reinterpret_cast<char*>(&count), sizeof(int));
 
                 for (int i = 0; i < count; i++) {
+
+#ifdef DEV_LOAD_INSTANCE_BLOB_RANDOM
                     float offset_x = dist(rng);
                     float offset_y = dist_height(rng);
                     float offset_z = dist(rng);
                     float rot_x = rot_dist(rng);
                     float rot_y = rot_dist(rng);
                     float rot_z = rot_dist(rng);
-                    
+#else
+                    float offset_x = i % 100 * 2;
+                    float offset_y = mesh_id;
+                    float offset_z = i / 100 * 3;
+                    float rot_x = 0;
+                    float rot_y = 0;
+                    float rot_z = 0;
+#endif
+
                     file.write(reinterpret_cast<char*>(&offset_x), sizeof(float));
                     file.write(reinterpret_cast<char*>(&offset_y), sizeof(float));
                     file.write(reinterpret_cast<char*>(&offset_z), sizeof(float));
