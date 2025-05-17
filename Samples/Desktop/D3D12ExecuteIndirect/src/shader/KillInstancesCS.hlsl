@@ -30,21 +30,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 groupId : SV_GroupID, uint3 gr
         Instance inst = inInstances[idx];
         uint meshId = inst.materialIndex.x;
 
-        // if (meshId == 1)
-        // {
-        //     outInstances[idx].x = 1;
-        //     InterlockedAdd(outCommands[meshId].draw_InstanceCount, 1);
-        // }
-        // else
-        // {
-        //     outInstances[idx].x = 0;
-        // }
-        
-
         float3 pos = inst.world[3].xyz;
         float4 clipPos = mul(float4(pos, 1.0f), vp);
 
+#ifdef DEBUG_CULL_DETERMINISTIC
+        if (DEBUG_CULL_DETERMINISTIC(meshId, idx))
+#else
         if (isInFrustum(clipPos))
+#endif
         {
             outInstances[idx].x = 1;
             

@@ -205,7 +205,10 @@ namespace OWO
         {
             auto get_instance_count = [&](int mesh_id) -> int
             {
-                return MAX_NOOF_INSTANCES / 4;
+                return 1 << 14;
+                // if ( mesh_id == 3 ) return 8000;
+                // else return 0;
+                // return 8000;
             };
             const float kAreaHalfSize = 200.0f;
             const float kAreaHeight = 50.0f;
@@ -237,9 +240,9 @@ namespace OWO
                     float rot_y = rot_dist(rng);
                     float rot_z = rot_dist(rng);
 #else
-                    float offset_x = i % 100 * 2;
-                    float offset_y = mesh_id;
-                    float offset_z = i / 100 * 3;
+                    float offset_x = i % 128 * 2;
+                    float offset_y = mesh_id * 3 + (i / 128);
+                    float offset_z = i / 128 * 2;
                     float rot_x = 0;
                     float rot_y = 0;
                     float rot_z = 0;

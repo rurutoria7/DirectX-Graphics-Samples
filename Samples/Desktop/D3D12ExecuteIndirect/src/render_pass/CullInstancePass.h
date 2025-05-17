@@ -208,7 +208,7 @@ struct CullInstancePass
             cb = {};
             cb.noof_instances = in_num_inst;
             cb.noof_instances_pow_of_2 = get_padded_size( in_num_inst );
-            cb.noof_drawcalls = in_num_meshes;
+            cb.noof_drawcalls = MAX_NOOF_MESHES;
 
             DirectX::XMStoreFloat4x4( &cb.vp, DirectX::XMMatrixTranspose( in_vp_no_transpose ) );
         };
@@ -314,18 +314,6 @@ struct CullInstancePass
             unsigned groupX = 1 + get_padded_size( in_num_inst ) / NOOF_THREADS_CLEAR_BUFFER;
             in_cmd_list->Dispatch( groupX, 1, 1 );
         };
-        auto insert_barrier_srv_to_uav = [in_cmd_list]( auto in_res )
-            {
-                CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
-                    in_res, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS );
-                in_cmd_list->ResourceBarrier( 1, &b );
-            };
-        auto insert_barrier_uav_to_srv = [in_cmd_list]( auto in_res )
-            {
-                CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
-                    in_res, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
-                in_cmd_list->ResourceBarrier( 1, &b );
-            };
 
 #ifdef GR_WORKGRAPH
         auto wg_dispatch_kill_instance_pass = [in_num_inst, in_cmd_list, this, in_num_meshes, in_vp_no_transpose](
