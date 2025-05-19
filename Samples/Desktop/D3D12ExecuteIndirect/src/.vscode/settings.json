@@ -5,6 +5,13 @@
         "xiosbase": "cpp",
         "*.impl": "cpp",
         "iosfwd": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "algorithm": "cpp",
+        "concepts": "cpp",
+        "filesystem": "cpp",
+        "functional": "cpp",
+        "memory": "cpp",
+        "xmemory": "cpp",
+        "xutility": "cpp"
     }
 }

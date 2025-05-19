@@ -143,31 +143,50 @@ struct CullInstancePass
             };
 
 #ifdef GR_WORKGRAPH
-        auto wg_init = [in_device, in_asset_path, &in_state_tracker, this](){
+        auto wg_init = [in_device, in_asset_path, &in_state_tracker, this]() {
             CD3DX12_STATE_OBJECT_DESC SO(D3D12_STATE_OBJECT_TYPE_EXECUTABLE);
+
             auto pLib = SO.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
-
             std::wstring c_csFilename = in_asset_path + L"Dummy_wg.cso";
-            struct
-            {
-                byte* data;
-                uint32_t size;
-            } cshader;
-            ThrowIfFailed( ReadDataFromFile( c_csFilename.c_str(), &cshader.data, &cshader.size ) );
-
-            CD3DX12_SHADER_BYTECODE libCode;
-            libCode = { cshader.data, cshader.size };
+            struct { byte* data; uint32_t size; } cshader;
+            ThrowIfFailed(ReadDataFromFile(c_csFilename.c_str(), &cshader.data, &cshader.size));
+            CD3DX12_SHADER_BYTECODE libCode{ cshader.data, cshader.size };
             pLib->SetDXILLibrary(&libCode);
-            ThrowIfFailed(in_device->CreateRootSignatureFromSubobjectInLibrary(0, libCode.pShaderBytecode, libCode.BytecodeLength, L"globalRS", IID_PPV_ARGS(&spRS)));
+
+            CD3DX12_ROOT_PARAMETER rootParams[8];
+            rootParams[0].InitAsConstants(20, 1, 0, D3D12_SHADER_VISIBILITY_ALL);
+            rootParams[1].InitAsShaderResourceView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+            for (UINT i = 0; i < 6; ++i)
+                rootParams[2 + i].InitAsUnorderedAccessView(i, 0, D3D12_SHADER_VISIBILITY_ALL);
+
+            CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc;
+            rootSigDesc.Init(_countof(rootParams), rootParams, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE);
+
+            ComPtr<ID3DBlob> serializedBlob, errorBlob;
+            D3D12SerializeRootSignature(
+                &rootSigDesc,
+                D3D_ROOT_SIGNATURE_VERSION_1,
+                &serializedBlob,
+                &errorBlob);
+
+            in_device->CreateRootSignature(
+                0,
+                serializedBlob->GetBufferPointer(),
+                serializedBlob->GetBufferSize(),
+                IID_PPV_ARGS(&spRS));
+
+            auto pGlobalRS = SO.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
+            pGlobalRS->SetRootSignature(spRS.Get());
 
             auto pWG = SO.CreateSubobject<CD3DX12_WORK_GRAPH_SUBOBJECT>();
-            pWG->IncludeAllAvailableNodes(); // Auto populate the graph
+            pWG->IncludeAllAvailableNodes();          
             LPCWSTR workGraphName = L"HelloWorkGraphs";
             pWG->SetProgramName(workGraphName);
 
             ThrowIfFailed(in_device->CreateStateObject(SO, IID_PPV_ARGS(&spSO)));
-            WG.Init(in_device, spSO, workGraphName, in_state_tracker);
+            WG.Init(in_device, spSO.Get(), workGraphName, in_state_tracker);
         };
+
         wg_init();
 #endif
 
