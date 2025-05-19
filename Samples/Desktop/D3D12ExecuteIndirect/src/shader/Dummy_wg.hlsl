@@ -127,10 +127,6 @@ void thirdNode(
 {
     int tID = dispatchThreadID.x;
     int groupTID = threadIndex;
-
-    scannedInstancePredicates[tID].x = 0;
-    scannedInstancePredicates[2 * tID].x = 0;
-    scannedInstancePredicates[2 * tID + 1].x = 0;
     
     int offset = 1;
     temp[2 * groupTID] = outInstances[2 * tID].x;

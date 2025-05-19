@@ -205,10 +205,7 @@ namespace OWO
         {
             auto get_instance_count = [&](int mesh_id) -> int
             {
-                return 1 << 14;
-                // if ( mesh_id == 3 ) return 8000;
-                // else return 0;
-                // return 8000;
+                return MAX_NOOF_INSTANCES / 4;
             };
             const float kAreaHalfSize = 200.0f;
             const float kAreaHeight = 50.0f;

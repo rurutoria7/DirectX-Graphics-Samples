@@ -20,10 +20,6 @@ void scanInstancePredicates(uint3 threadID : SV_DispatchThreadID, uint3 groupThr
 {
     int tID = threadID.x;
     int groupTID = groupThreadID.x;
-
-    scannedInstancePredicates[tID].x = 0;
-    scannedInstancePredicates[2 * tID].x = 0;
-    scannedInstancePredicates[2 * tID + 1].x = 0;
     
     int offset = 1;
     temp[2 * groupTID] = instancePredicatesIn[2 * tID].x;
