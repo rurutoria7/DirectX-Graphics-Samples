@@ -17,6 +17,6 @@
 
 // ------------------ MyMesh ------------------
 // #define DEBUG_CULL_DETERMINISTIC(mesh_id, idx) (mesh_id == 1 && (idx & 1))
-#define DEV_LOAD_INSTANCE_BLOB
-#define DEV_LOAD_INSTANCE_BLOB_RANDOM
+// #define DEV_LOAD_INSTANCE_BLOB
+// #define DEV_LOAD_INSTANCE_BLOB_RANDOM
 

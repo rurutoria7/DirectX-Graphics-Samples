@@ -345,7 +345,9 @@ namespace OWO
         };
 
         std::string instanceDataPath = filepath + ".instances";
+#ifdef DEV_LOAD_INSTANCE_BLOB
         generate_instance_data_blob(instanceDataPath);
+#endif
         load_instance_data_blob(instanceDataPath);
 
         // Flatten
