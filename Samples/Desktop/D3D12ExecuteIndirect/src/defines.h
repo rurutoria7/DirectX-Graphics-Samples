@@ -13,7 +13,7 @@
 #define MAX_NOOF_INSTANCES (INSTANCE_COMPACTION_SCAN_BLOCK * INSTANCE_COMPACTION_NOOF_BLOCK)
 #define MAX_NOOF_MESHES (1 << 11)
 
-#define GR_WORKGRAPH
+//#define GR_WORKGRAPH
 
 // ------------------ MyMesh ------------------
 // #define DEBUG_CULL_DETERMINISTIC(mesh_id, idx) (mesh_id == 1 && (idx & 1))

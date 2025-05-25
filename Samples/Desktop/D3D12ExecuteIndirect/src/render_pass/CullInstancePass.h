@@ -144,6 +144,8 @@ struct CullInstancePass
 
 #ifdef GR_WORKGRAPH
         auto wg_init = [in_device, in_asset_path, &in_state_tracker, this]() {
+            OutputDebugStringA("[GR] WORKGRAPH ENABLED\n");
+
             CD3DX12_STATE_OBJECT_DESC SO(D3D12_STATE_OBJECT_TYPE_EXECUTABLE);
 
             auto pLib = SO.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
@@ -188,6 +190,8 @@ struct CullInstancePass
         };
 
         wg_init();
+#else
+		OutputDebugStringA("[GR] WORKGRAPH DISABLED\n");
 #endif
 
         create_pso_rs( L"ClearBufferCS.cso", m_rs_clear_buffer_pass, m_pso_clear_buffer_pass );

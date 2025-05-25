@@ -82,8 +82,6 @@ struct GraphicsPass
         {
             std::wstring c_vsFilename = in_assetPath + L"VS.cso";
             std::wstring c_psFilename = in_assetPath + L"PS.cso";
-            std::wstring c_csFilename = in_assetPath + L"CS.cso";
-
             struct
             {
                 byte* data;
@@ -92,8 +90,6 @@ struct GraphicsPass
 
             ReadDataFromFile( c_vsFilename.c_str(), &vshader.data, &vshader.size );
             ReadDataFromFile( c_psFilename.c_str(), &pshader.data, &pshader.size );
-            ReadDataFromFile( c_csFilename.c_str(), &cshader.data, &cshader.size );
-
 #if defined(_DEBUG)
             // Enable better shader debugging with the graphics debugging tools.
             UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
