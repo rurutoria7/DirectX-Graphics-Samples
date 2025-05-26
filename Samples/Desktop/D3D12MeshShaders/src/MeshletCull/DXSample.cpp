@@ -24,7 +24,7 @@ DXSample::DXSample(UINT width, UINT height, std::wstring name) :
     GetAssetsPath(assetsPath, _countof(assetsPath));
     m_assetsPath = assetsPath;
 
-    m_aspectRatio = static_cast<float>(width) / 2 / static_cast<float>(height);
+    m_aspectRatio = static_cast<float>(width) / static_cast<float>(height);
 }
 
 DXSample::~DXSample()

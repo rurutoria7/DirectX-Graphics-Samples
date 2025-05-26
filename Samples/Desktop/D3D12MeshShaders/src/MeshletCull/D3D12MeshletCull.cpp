@@ -662,9 +662,7 @@ void D3D12MeshletCull::PopulateCommandList()
     ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
 
     // Set necessary state.
-    auto leftViewPort = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(m_width) / 2.0f, static_cast<float>(m_height));
-    auto rightViewPort = CD3DX12_VIEWPORT(static_cast<float>(m_width) / 2.0f, 0.0f, static_cast<float>(m_width) / 2.0f, static_cast<float>(m_height));
-    m_commandList->RSSetViewports(1, &leftViewPort);
+    m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
     // Indicate that the back buffer will be used as a render target.
@@ -706,48 +704,6 @@ void D3D12MeshletCull::PopulateCommandList()
             m_commandList->DispatchMesh(DivRoundUp(meshletCount, AS_GROUP_SIZE), 1, 1);
         }
     }
-
-    // Player view.
-    {
-        // Set constant data to be read by the shaders.
-        {
-            auto& constants = *(reinterpret_cast<Constants*>(m_constantsData) + m_frameIndex);
-
-            XMMATRIX view = m_debugCam.GetViewMatrix();
-            XMMATRIX proj = m_debugCam.GetProjectionMatrix(m_fovy, m_aspectRatio);
-            XMMATRIX viewInv = XMMatrixInverse(nullptr, view);
-
-            XMStoreFloat4x4(&constants.View, XMMatrixTranspose(view));
-            XMStoreFloat4x4(&constants.ViewProj, XMMatrixTranspose(view * proj));
-        }
-
-       
-        m_commandList->RSSetViewports(1, &rightViewPort);
-        // Draw all scene objects with the same pipeline state.
-        for (auto& obj : m_objects)
-        {
-            // Bind instance data
-            m_commandList->SetGraphicsRootConstantBufferView(2, obj.InstanceResource->GetGPUVirtualAddress() + sizeof(Instance) * m_frameIndex);
-
-            for (auto& mesh : obj.Model)
-            {
-                // Bind meshlet data
-                m_commandList->SetGraphicsRootConstantBufferView(1, mesh.MeshInfoResource->GetGPUVirtualAddress());
-                m_commandList->SetGraphicsRootShaderResourceView(3, mesh.VertexResources[0]->GetGPUVirtualAddress());
-                m_commandList->SetGraphicsRootShaderResourceView(4, mesh.MeshletResource->GetGPUVirtualAddress());
-                m_commandList->SetGraphicsRootShaderResourceView(5, mesh.UniqueVertexIndexResource->GetGPUVirtualAddress());
-                m_commandList->SetGraphicsRootShaderResourceView(6, mesh.PrimitiveIndexResource->GetGPUVirtualAddress());
-                m_commandList->SetGraphicsRootShaderResourceView(7, mesh.CullDataResource->GetGPUVirtualAddress());
-
-                const uint32_t meshletCount = static_cast<uint32_t>(mesh.Meshlets.size());
-
-                // Dispatch a single thread for each meshlet.
-                m_commandList->DispatchMesh(DivRoundUp(meshletCount, AS_GROUP_SIZE), 1, 1);
-            }
-        }
-        m_commandList->RSSetViewports(1, &leftViewPort);
-    }
-
 
     // Draw the frustum bounds of the culling camera.
     m_frustumDraw.Draw(m_commandList.Get());
